@@ -63,6 +63,50 @@
         <p id="active-prompt-text" class="question-text">No prompt is active.</p>
         <div id="active-prompt-results" class="prompt-results" hidden></div>
       </section>
+
+      <section class="panel feed-panel" aria-labelledby="lesson-studio-title">
+        <div class="feed-header">
+          <h2 id="lesson-studio-title">Lesson Studio</h2>
+          <p id="lesson-sync-status" class="muted">No active lesson.</p>
+        </div>
+
+        <form id="lesson-custom-form" novalidate>
+          <label for="lesson-title-input">Lesson title</label>
+          <input id="lesson-title-input" maxlength="120" placeholder="Algebra Review" required />
+
+          <label for="lesson-slides-input">Text slides (separate each slide with ---)</label>
+          <textarea
+            id="lesson-slides-input"
+            rows="8"
+            placeholder="Slide 1 title&#10;Slide 1 body line&#10;---&#10;Slide 2 title&#10;Slide 2 body"
+          ></textarea>
+
+          <div class="form-row">
+            <button id="lesson-publish-custom" type="submit">Publish Text Lesson</button>
+            <p id="lesson-status" class="status" aria-live="polite"></p>
+          </div>
+        </form>
+
+        <form id="lesson-upload-form" class="lesson-upload-form" novalidate>
+          <label for="lesson-image-title">Image lesson title</label>
+          <input id="lesson-image-title" maxlength="120" placeholder="Biology Diagram Set" required />
+
+          <label for="lesson-image-files">Upload image slides</label>
+          <input id="lesson-image-files" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple required />
+
+          <div class="form-row">
+            <button id="lesson-upload-button" type="submit">Upload Image Lesson</button>
+          </div>
+        </form>
+
+        <div class="lesson-nav">
+          <button id="lesson-prev" type="button" class="ghost">Previous Slide</button>
+          <button id="lesson-next" type="button" class="ghost">Next Slide</button>
+          <button id="lesson-clear" type="button" class="ghost">Clear Lesson</button>
+        </div>
+
+        <div id="lesson-preview" class="prompt-results" hidden></div>
+      </section>
     </main>
 
     <script src="{{ url_for('static', filename='instructor.js') }}" defer></script>

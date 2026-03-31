@@ -37,7 +37,19 @@
       </header>
 
       <div class="student-layout">
-        <section class="panel prompt-panel" aria-labelledby="prompt-title">
+        <div class="main-column">
+          <section class="panel lesson-panel" aria-labelledby="lesson-title">
+            <div class="feed-header">
+              <h2 id="lesson-title">Lesson Display</h2>
+              <p id="lesson-status" class="muted">Waiting for instructor lesson...</p>
+            </div>
+
+            <div id="lesson-stage" class="lesson-stage">
+              <p class="muted">No active lesson yet.</p>
+            </div>
+          </section>
+
+          <section class="panel prompt-panel" aria-labelledby="prompt-title">
           <div class="feed-header">
             <h2 id="prompt-title">Active Question</h2>
             <p id="question-status" class="muted">Waiting for instructor prompt...</p>
@@ -55,7 +67,8 @@
           </form>
 
           <div id="prompt-results" class="prompt-results" hidden></div>
-        </section>
+          </section>
+        </div>
 
         <aside id="chat-sidebar" class="panel chat-sidebar" aria-labelledby="chat-title">
           <div class="chat-header">

@@ -1,13 +1,19 @@
 from collections import defaultdict, deque
 from datetime import datetime, timezone
+from pathlib import Path
 from threading import Lock
 import json
 import os
 import time
 
-from flask import Flask, Response, jsonify, render_template, request, stream_with_context
+from flask import Flask, Response, jsonify, render_template, request, send_from_directory, stream_with_context
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
+
+UPLOAD_DIR = Path(__file__).parent / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)
+ALLOWED_LESSON_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "webp", "gif"}
 
 # In-memory state for v1; resets when the process restarts.
 state_lock = Lock()
@@ -18,6 +24,9 @@ next_prompt_id = 1
 responses = []
 next_response_id = 1
 state_version = 0
+active_lesson = None
+current_slide_index = 0
+next_lesson_id = 1
 
 # Basic per-IP rate limiting to avoid accidental spam in a classroom setting.
 RATE_LIMIT_WINDOW_SECONDS = 10
@@ -32,6 +41,10 @@ MAX_OPTION_LENGTH = 120
 MAX_OPTIONS = 6
 MAX_FREE_RESPONSE_LENGTH = 280
 MAX_STORED_RESPONSES = 500
+MAX_LESSON_TITLE_LENGTH = 120
+MAX_LESSON_SLIDE_TITLE_LENGTH = 120
+MAX_LESSON_SLIDE_BODY_LENGTH = 3000
+MAX_LESSON_SLIDES = 80
 
 
 def now_iso() -> str:
@@ -40,6 +53,19 @@ def now_iso() -> str:
 
 def normalize_identity(name: str) -> str:
     return " ".join(name.strip().lower().split())
+
+
+def allowed_lesson_image(filename: str) -> bool:
+    if "." not in filename:
+        return False
+    extension = filename.rsplit(".", 1)[1].lower()
+    return extension in ALLOWED_LESSON_IMAGE_EXTENSIONS
+
+
+def clamp_slide_index(index: int, total: int) -> int:
+    if total <= 0:
+        return 0
+    return max(0, min(index, total - 1))
 
 
 def build_prompt_stats_locked() -> dict | None:
@@ -82,6 +108,8 @@ def snapshot_state_locked() -> dict:
         "count": len(submissions),
         "activePrompt": dict(active_prompt) if active_prompt else None,
         "promptStats": build_prompt_stats_locked(),
+        "activeLesson": dict(active_lesson) if active_lesson else None,
+        "currentSlideIndex": current_slide_index,
         "serverTime": now_iso(),
         "stateVersion": state_version,
     }
@@ -123,6 +151,11 @@ def instructor_view():
     return render_template("instructor.html")
 
 
+@app.route("/uploads/<path:filename>")
+def serve_upload(filename: str):
+    return send_from_directory(UPLOAD_DIR, filename)
+
+
 @app.get("/api/submissions")
 def get_submissions():
     return jsonify(snapshot_state())
@@ -135,6 +168,18 @@ def get_prompt():
         {
             "activePrompt": snapshot["activePrompt"],
             "promptStats": snapshot["promptStats"],
+            "serverTime": snapshot["serverTime"],
+        }
+    )
+
+
+@app.get("/api/lesson")
+def get_lesson():
+    snapshot = snapshot_state()
+    return jsonify(
+        {
+            "activeLesson": snapshot["activeLesson"],
+            "currentSlideIndex": snapshot["currentSlideIndex"],
             "serverTime": snapshot["serverTime"],
         }
     )
@@ -371,6 +416,154 @@ def submit_prompt_response():
         bump_state_version_locked()
 
     return jsonify({"ok": True, "response": response}), 201
+
+
+@app.post("/api/instructor/lesson/custom")
+def create_custom_lesson():
+    payload = request.get_json(silent=True) or {}
+    title = str(payload.get("title", "")).strip()
+    raw_slides = payload.get("slides", [])
+
+    if not title:
+        return jsonify({"error": "Lesson title is required."}), 400
+
+    if len(title) > MAX_LESSON_TITLE_LENGTH:
+        return jsonify({"error": f"Lesson title must be {MAX_LESSON_TITLE_LENGTH} characters or fewer."}), 400
+
+    if not isinstance(raw_slides, list) or not raw_slides:
+        return jsonify({"error": "At least one slide is required."}), 400
+
+    if len(raw_slides) > MAX_LESSON_SLIDES:
+        return jsonify({"error": f"Lesson can include up to {MAX_LESSON_SLIDES} slides."}), 400
+
+    slides = []
+    for index, item in enumerate(raw_slides):
+        if not isinstance(item, dict):
+            return jsonify({"error": f"Slide {index + 1} is invalid."}), 400
+
+        slide_title = str(item.get("title", "")).strip() or f"Slide {index + 1}"
+        slide_body = str(item.get("body", "")).strip()
+
+        if len(slide_title) > MAX_LESSON_SLIDE_TITLE_LENGTH:
+            return jsonify({"error": f"Slide title must be {MAX_LESSON_SLIDE_TITLE_LENGTH} characters or fewer."}), 400
+
+        if len(slide_body) > MAX_LESSON_SLIDE_BODY_LENGTH:
+            return jsonify({"error": f"Slide body must be {MAX_LESSON_SLIDE_BODY_LENGTH} characters or fewer."}), 400
+
+        slides.append({"kind": "text", "title": slide_title, "body": slide_body})
+
+    global active_lesson, current_slide_index, next_lesson_id
+    with state_lock:
+        active_lesson = {
+            "id": next_lesson_id,
+            "type": "custom",
+            "title": title,
+            "slides": slides,
+            "createdAt": now_iso(),
+        }
+        next_lesson_id += 1
+        current_slide_index = 0
+        bump_state_version_locked()
+
+    return jsonify({"ok": True, "activeLesson": active_lesson, "currentSlideIndex": current_slide_index}), 201
+
+
+@app.post("/api/instructor/lesson/upload-images")
+def upload_image_lesson():
+    title = str(request.form.get("title", "")).strip()
+    files = request.files.getlist("files")
+
+    if not title:
+        return jsonify({"error": "Lesson title is required."}), 400
+
+    if len(title) > MAX_LESSON_TITLE_LENGTH:
+        return jsonify({"error": f"Lesson title must be {MAX_LESSON_TITLE_LENGTH} characters or fewer."}), 400
+
+    if not files:
+        return jsonify({"error": "Upload at least one image."}), 400
+
+    if len(files) > MAX_LESSON_SLIDES:
+        return jsonify({"error": f"Upload up to {MAX_LESSON_SLIDES} images per lesson."}), 400
+
+    slides = []
+    timestamp = int(time.time())
+    for index, incoming in enumerate(files):
+        original_name = secure_filename(incoming.filename or "")
+        if not original_name or not allowed_lesson_image(original_name):
+            return jsonify({"error": "Only image files are supported (png, jpg, jpeg, webp, gif)."}), 400
+
+        stored_name = f"{timestamp}_{index}_{original_name}"
+        destination = UPLOAD_DIR / stored_name
+        incoming.save(destination)
+        slides.append(
+            {
+                "kind": "image",
+                "title": Path(original_name).stem,
+                "imageUrl": f"/uploads/{stored_name}",
+            }
+        )
+
+    global active_lesson, current_slide_index, next_lesson_id
+    with state_lock:
+        active_lesson = {
+            "id": next_lesson_id,
+            "type": "image",
+            "title": title,
+            "slides": slides,
+            "createdAt": now_iso(),
+        }
+        next_lesson_id += 1
+        current_slide_index = 0
+        bump_state_version_locked()
+
+    return jsonify({"ok": True, "activeLesson": active_lesson, "currentSlideIndex": current_slide_index}), 201
+
+
+@app.post("/api/instructor/lesson/navigate")
+def navigate_lesson():
+    payload = request.get_json(silent=True) or {}
+    direction = str(payload.get("direction", "")).strip().lower()
+    requested_index = payload.get("index")
+
+    global current_slide_index
+    with state_lock:
+        if not active_lesson:
+            return jsonify({"error": "No active lesson."}), 404
+
+        total = len(active_lesson.get("slides", []))
+        if total == 0:
+            return jsonify({"error": "Active lesson has no slides."}), 400
+
+        if isinstance(requested_index, int):
+            current_slide_index = clamp_slide_index(requested_index, total)
+        elif direction == "next":
+            current_slide_index = clamp_slide_index(current_slide_index + 1, total)
+        elif direction == "prev":
+            current_slide_index = clamp_slide_index(current_slide_index - 1, total)
+        else:
+            return jsonify({"error": "Provide direction (next/prev) or a numeric index."}), 400
+
+        bump_state_version_locked()
+        snapshot = snapshot_state_locked()
+
+    return jsonify(
+        {
+            "ok": True,
+            "activeLesson": snapshot["activeLesson"],
+            "currentSlideIndex": snapshot["currentSlideIndex"],
+        }
+    )
+
+
+@app.post("/api/instructor/lesson/clear")
+def clear_lesson():
+    global active_lesson, current_slide_index
+    with state_lock:
+        active_lesson = None
+        current_slide_index = 0
+        bump_state_version_locked()
+
+    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":
