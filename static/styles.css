@@ -470,7 +470,7 @@ button:disabled {
   }
 
   .student-layout {
-    grid-template-columns: minmax(0, 1fr) 360px;
+    grid-template-columns: minmax(0, 3fr) minmax(280px, 1fr);
     align-items: start;
   }
 
