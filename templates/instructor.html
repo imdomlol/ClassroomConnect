@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ClassroomConnect Instructor View</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body>
+    <div class="background-grid" aria-hidden="true"></div>
+    <main class="shell">
+      <header class="hero">
+        <p class="eyebrow">Instructor Controls</p>
+        <h1>Prompt Manager</h1>
+        <p class="subtitle">Create multiple choice or free response prompts for connected students.</p>
+        <p class="subtitle"><a href="/">Back to Student View</a></p>
+      </header>
+
+      <section class="panel form-panel" aria-labelledby="new-prompt-title">
+        <h2 id="new-prompt-title">Create Prompt</h2>
+        <form id="prompt-form" novalidate>
+          <label for="question-type">Question type</label>
+          <select id="question-type" name="questionType">
+            <option value="multiple_choice">Multiple choice</option>
+            <option value="free_response">Free response</option>
+          </select>
+
+          <label for="prompt-text">Prompt</label>
+          <textarea
+            id="prompt-text"
+            name="prompt"
+            maxlength="280"
+            rows="3"
+            required
+            placeholder="What topic do you want to review first?"
+          ></textarea>
+
+          <div id="options-group">
+            <label for="prompt-options">Options (one per line)</label>
+            <textarea
+              id="prompt-options"
+              name="options"
+              rows="4"
+              placeholder="Fractions&#10;Decimals&#10;Ratios"
+            ></textarea>
+          </div>
+
+          <div class="form-row">
+            <button id="prompt-submit-button" type="submit">Publish Prompt</button>
+            <button id="prompt-close-button" type="button" class="ghost">Close Active Prompt</button>
+            <p id="prompt-status" class="status" aria-live="polite"></p>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel feed-panel" aria-labelledby="active-prompt-title">
+        <div class="feed-header">
+          <h2 id="active-prompt-title">Active Prompt Snapshot</h2>
+          <p id="last-updated" class="muted">Waiting for first update...</p>
+        </div>
+
+        <p id="active-prompt-text" class="question-text">No prompt is active.</p>
+        <div id="active-prompt-results" class="prompt-results" hidden></div>
+      </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='instructor.js') }}" defer></script>
+  </body>
+</html>

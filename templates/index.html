@@ -15,7 +15,33 @@
         <p class="subtitle">
           Anyone on this Wi-Fi can post quick updates and see responses in near real time.
         </p>
+        <p class="subtitle">
+          Instructor controls are available at <a href="/instructor">Instructor View</a>.
+        </p>
       </header>
+
+      <section class="panel prompt-panel" aria-labelledby="prompt-title">
+        <div class="feed-header">
+          <h2 id="prompt-title">Active Question</h2>
+          <p id="question-status" class="muted">Waiting for instructor prompt...</p>
+        </div>
+
+        <p id="question-text" class="question-text">No active question yet.</p>
+
+        <form id="answer-form" novalidate>
+          <label for="answer-name">Your name</label>
+          <input id="answer-name" name="answerName" maxlength="40" required placeholder="Alex" />
+
+          <div id="answer-input-area"></div>
+
+          <div class="form-row">
+            <button id="answer-submit-button" type="submit" disabled>Submit Answer</button>
+            <p id="answer-status" class="status" aria-live="polite"></p>
+          </div>
+        </form>
+
+        <div id="prompt-results" class="prompt-results" hidden></div>
+      </section>
 
       <section class="panel form-panel" aria-labelledby="post-title">
         <h2 id="post-title">Post an Update</h2>
