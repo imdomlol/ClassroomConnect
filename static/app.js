@@ -174,6 +174,12 @@ function renderPromptResults(prompt, stats) {
     return;
   }
 
+  if (!prompt.locked) {
+    promptResultsNode.hidden = false;
+    promptResultsNode.innerHTML = '<p class="muted">Responses are hidden until the instructor locks this question.</p>';
+    return;
+  }
+
   promptResultsNode.hidden = false;
 
   if (prompt.type === "multiple_choice") {
@@ -202,7 +208,7 @@ function renderPromptResults(prompt, stats) {
     .map(
       (item) => `
       <li class="response-item">
-        <header><strong>${escapeHtml(item.name)}</strong><span>${toLocalTime(item.createdAt)}</span></header>
+        <header><strong>Student response</strong><span>${toLocalTime(item.createdAt)}</span></header>
         <p>${escapeHtml(item.answer)}</p>
       </li>
     `

@@ -8,6 +8,8 @@ Version 1 behavior:
 - Instructor view for publishing multiple choice or free response prompts
 - Student name entered once per browser session and reused for actions
 - One response per student name per prompt, editable until instructor locks responses
+- Student response results hidden from class until instructor locks the question
+- Student view never displays responder names; names are instructor-only
 - Instructor lesson display mode for text slides or uploaded image slides
 - Live lesson navigation to keep all student screens in sync
 - Open access for anyone on the hotspot network
@@ -56,7 +58,11 @@ http://<HOST_IP>:5000/instructor
 - `GET /api/submissions`
 	- Returns current submissions and server time.
 - `GET /api/stream`
-	- Streams live snapshot events for near-real-time updates.
+	- Streams student-safe live snapshot events (no responder names).
+- `GET /api/instructor/state`
+	- Returns instructor state including responder names for free-response review.
+- `GET /api/instructor/stream`
+	- Streams instructor state including responder names.
 - `GET /api/prompt`
 	- Returns active prompt and prompt response summary.
 - `GET /api/lesson`

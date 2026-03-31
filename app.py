@@ -68,7 +68,7 @@ def clamp_slide_index(index: int, total: int) -> int:
     return max(0, min(index, total - 1))
 
 
-def build_prompt_stats_locked() -> dict | None:
+def build_prompt_stats_locked(include_names: bool = False) -> dict | None:
     if not active_prompt:
         return None
 
@@ -88,26 +88,29 @@ def build_prompt_stats_locked() -> dict | None:
         }
 
     latest = list(reversed(prompt_responses))[:20]
+    latest_responses = []
+    for item in latest:
+        entry = {
+            "answer": item["answer"],
+            "createdAt": item["createdAt"],
+            "updatedAt": item.get("updatedAt"),
+        }
+        if include_names:
+            entry["name"] = item["name"]
+        latest_responses.append(entry)
+
     return {
         "totalResponses": len(prompt_responses),
-        "latestResponses": [
-            {
-                "name": item["name"],
-                "answer": item["answer"],
-                "createdAt": item["createdAt"],
-                "updatedAt": item.get("updatedAt"),
-            }
-            for item in latest
-        ],
+        "latestResponses": latest_responses,
     }
 
 
-def snapshot_state_locked() -> dict:
+def snapshot_state_locked(include_names: bool = False) -> dict:
     return {
         "submissions": list(submissions),
         "count": len(submissions),
         "activePrompt": dict(active_prompt) if active_prompt else None,
-        "promptStats": build_prompt_stats_locked(),
+        "promptStats": build_prompt_stats_locked(include_names=include_names),
         "activeLesson": dict(active_lesson) if active_lesson else None,
         "currentSlideIndex": current_slide_index,
         "serverTime": now_iso(),
@@ -115,11 +118,15 @@ def snapshot_state_locked() -> dict:
     }
 
 
-def snapshot_state() -> dict:
+def snapshot_state(include_names: bool = False) -> dict:
     with state_lock:
         return {
-            **snapshot_state_locked(),
+            **snapshot_state_locked(include_names=include_names),
         }
+
+
+def snapshot_instructor_state() -> dict:
+    return snapshot_state(include_names=True)
 
 
 def bump_state_version_locked() -> None:
@@ -158,12 +165,17 @@ def serve_upload(filename: str):
 
 @app.get("/api/submissions")
 def get_submissions():
-    return jsonify(snapshot_state())
+    return jsonify(snapshot_state(include_names=False))
+
+
+@app.get("/api/instructor/state")
+def get_instructor_state():
+    return jsonify(snapshot_instructor_state())
 
 
 @app.get("/api/prompt")
 def get_prompt():
-    snapshot = snapshot_state()
+    snapshot = snapshot_state(include_names=False)
     return jsonify(
         {
             "activePrompt": snapshot["activePrompt"],
@@ -175,7 +187,7 @@ def get_prompt():
 
 @app.get("/api/lesson")
 def get_lesson():
-    snapshot = snapshot_state()
+    snapshot = snapshot_state(include_names=False)
     return jsonify(
         {
             "activeLesson": snapshot["activeLesson"],
@@ -193,7 +205,37 @@ def stream_submissions():
         last_ping = 0.0
 
         while True:
-            snapshot = snapshot_state()
+            snapshot = snapshot_state(include_names=False)
+            latest = snapshot["stateVersion"]
+
+            if latest != last_seen_version:
+                last_seen_version = latest
+                yield f"event: snapshot\ndata: {json.dumps(snapshot)}\n\n"
+
+            now = time.time()
+            if now - last_ping > 20:
+                last_ping = now
+                yield "event: ping\ndata: ok\n\n"
+
+            time.sleep(1)
+
+    headers = {
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+    }
+    return Response(event_stream(), mimetype="text/event-stream", headers=headers)
+
+
+@app.get("/api/instructor/stream")
+def stream_instructor_state():
+    @stream_with_context
+    def event_stream():
+        last_seen_version = -1
+        last_ping = 0.0
+
+        while True:
+            snapshot = snapshot_instructor_state()
             latest = snapshot["stateVersion"]
 
             if latest != last_seen_version:

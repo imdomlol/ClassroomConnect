@@ -193,7 +193,7 @@ function applySnapshot(data) {
 
 async function refreshSnapshot() {
   try {
-    const response = await fetch("/api/submissions", { cache: "no-store" });
+    const response = await fetch("/api/instructor/state", { cache: "no-store" });
     if (!response.ok) {
       throw new Error("Could not load prompt state");
     }
@@ -226,7 +226,7 @@ function connectStream() {
     return;
   }
 
-  stream = new EventSource("/api/stream");
+  stream = new EventSource("/api/instructor/stream");
   stream.addEventListener("snapshot", (event) => {
     try {
       applySnapshot(JSON.parse(event.data));
