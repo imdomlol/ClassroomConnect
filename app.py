@@ -13,6 +13,11 @@ app = Flask(__name__)
 state_lock = Lock()
 submissions = []
 next_id = 1
+active_prompt = None
+next_prompt_id = 1
+responses = []
+next_response_id = 1
+state_version = 0
 
 # Basic per-IP rate limiting to avoid accidental spam in a classroom setting.
 RATE_LIMIT_WINDOW_SECONDS = 10
@@ -22,19 +27,71 @@ request_history = defaultdict(deque)
 MAX_MESSAGE_LENGTH = 280
 MAX_NAME_LENGTH = 40
 MAX_STORED_SUBMISSIONS = 200
+MAX_PROMPT_LENGTH = 280
+MAX_OPTION_LENGTH = 120
+MAX_OPTIONS = 6
+MAX_FREE_RESPONSE_LENGTH = 280
+MAX_STORED_RESPONSES = 500
 
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def build_prompt_stats_locked() -> dict | None:
+    if not active_prompt:
+        return None
+
+    prompt_responses = [item for item in responses if item["promptId"] == active_prompt["id"]]
+    if active_prompt["type"] == "multiple_choice":
+        counts = {option: 0 for option in active_prompt["options"]}
+        for item in prompt_responses:
+            answer = item["answer"]
+            if answer in counts:
+                counts[answer] += 1
+
+        return {
+            "totalResponses": len(prompt_responses),
+            "options": [
+                {"option": option, "count": counts[option]} for option in active_prompt["options"]
+            ],
+        }
+
+    latest = list(reversed(prompt_responses))[:20]
+    return {
+        "totalResponses": len(prompt_responses),
+        "latestResponses": [
+            {
+                "name": item["name"],
+                "answer": item["answer"],
+                "createdAt": item["createdAt"],
+            }
+            for item in latest
+        ],
+    }
+
+
+def snapshot_state_locked() -> dict:
+    return {
+        "submissions": list(submissions),
+        "count": len(submissions),
+        "activePrompt": dict(active_prompt) if active_prompt else None,
+        "promptStats": build_prompt_stats_locked(),
+        "serverTime": now_iso(),
+        "stateVersion": state_version,
+    }
+
+
 def snapshot_state() -> dict:
     with state_lock:
         return {
-            "submissions": list(submissions),
-            "count": len(submissions),
-            "serverTime": now_iso(),
+            **snapshot_state_locked(),
         }
+
+
+def bump_state_version_locked() -> None:
+    global state_version
+    state_version += 1
 
 
 def is_rate_limited(client_ip: str) -> bool:
@@ -56,24 +113,41 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/instructor")
+def instructor_view():
+    return render_template("instructor.html")
+
+
 @app.get("/api/submissions")
 def get_submissions():
     return jsonify(snapshot_state())
+
+
+@app.get("/api/prompt")
+def get_prompt():
+    snapshot = snapshot_state()
+    return jsonify(
+        {
+            "activePrompt": snapshot["activePrompt"],
+            "promptStats": snapshot["promptStats"],
+            "serverTime": snapshot["serverTime"],
+        }
+    )
 
 
 @app.get("/api/stream")
 def stream_submissions():
     @stream_with_context
     def event_stream():
-        last_seen_id = -1
+        last_seen_version = -1
         last_ping = 0.0
 
         while True:
             snapshot = snapshot_state()
-            latest = snapshot["submissions"][-1]["id"] if snapshot["submissions"] else 0
+            latest = snapshot["stateVersion"]
 
-            if latest != last_seen_id:
-                last_seen_id = latest
+            if latest != last_seen_version:
+                last_seen_version = latest
                 yield f"event: snapshot\ndata: {json.dumps(snapshot)}\n\n"
 
             now = time.time()
@@ -134,7 +208,127 @@ def create_submission():
         if len(submissions) > MAX_STORED_SUBMISSIONS:
             del submissions[0 : len(submissions) - MAX_STORED_SUBMISSIONS]
 
+        bump_state_version_locked()
+
     return jsonify({"ok": True, "submission": submission}), 201
+
+
+@app.post("/api/instructor/prompt")
+def create_prompt():
+    payload = request.get_json(silent=True) or {}
+    question_type = str(payload.get("questionType", "")).strip().lower()
+    prompt_text = str(payload.get("prompt", "")).strip()
+    raw_options = payload.get("options", [])
+
+    if question_type not in {"multiple_choice", "free_response"}:
+        return jsonify({"error": "questionType must be multiple_choice or free_response."}), 400
+
+    if not prompt_text:
+        return jsonify({"error": "Prompt text is required."}), 400
+
+    if len(prompt_text) > MAX_PROMPT_LENGTH:
+        return jsonify({"error": f"Prompt must be {MAX_PROMPT_LENGTH} characters or fewer."}), 400
+
+    options = []
+    if question_type == "multiple_choice":
+        if isinstance(raw_options, list):
+            parsed = [str(item).strip() for item in raw_options]
+        elif isinstance(raw_options, str):
+            parsed = [line.strip() for line in raw_options.splitlines()]
+        else:
+            parsed = []
+
+        options = [item for item in parsed if item]
+        options = list(dict.fromkeys(options))
+
+        if len(options) < 2:
+            return jsonify({"error": "Multiple choice prompts need at least 2 options."}), 400
+
+        if len(options) > MAX_OPTIONS:
+            return jsonify({"error": f"Multiple choice prompts can have up to {MAX_OPTIONS} options."}), 400
+
+        for option in options:
+            if len(option) > MAX_OPTION_LENGTH:
+                return jsonify({"error": f"Each option must be {MAX_OPTION_LENGTH} characters or fewer."}), 400
+
+    global active_prompt, next_prompt_id
+    with state_lock:
+        active_prompt = {
+            "id": next_prompt_id,
+            "type": question_type,
+            "prompt": prompt_text,
+            "options": options,
+            "createdAt": now_iso(),
+        }
+        next_prompt_id += 1
+        bump_state_version_locked()
+
+    return jsonify({"ok": True, "activePrompt": active_prompt}), 201
+
+
+@app.post("/api/instructor/prompt/close")
+def close_prompt():
+    global active_prompt
+    with state_lock:
+        if not active_prompt:
+            return jsonify({"error": "No active prompt to close."}), 404
+
+        active_prompt = None
+        bump_state_version_locked()
+
+    return jsonify({"ok": True})
+
+
+@app.post("/api/prompt/respond")
+def submit_prompt_response():
+    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown")
+    if is_rate_limited(client_ip):
+        return (
+            jsonify({"error": "Too many requests. Please wait a few seconds."}),
+            429,
+        )
+
+    payload = request.get_json(silent=True) or {}
+    name = str(payload.get("name", "")).strip()
+    answer = str(payload.get("answer", "")).strip()
+
+    if not name:
+        return jsonify({"error": "Name is required."}), 400
+
+    if len(name) > MAX_NAME_LENGTH:
+        return jsonify({"error": f"Name must be {MAX_NAME_LENGTH} characters or fewer."}), 400
+
+    if not answer:
+        return jsonify({"error": "Answer is required."}), 400
+
+    global next_response_id
+    with state_lock:
+        if not active_prompt:
+            return jsonify({"error": "No active question right now."}), 400
+
+        if active_prompt["type"] == "multiple_choice":
+            if answer not in active_prompt["options"]:
+                return jsonify({"error": "Answer must be one of the listed options."}), 400
+        else:
+            if len(answer) > MAX_FREE_RESPONSE_LENGTH:
+                return jsonify({"error": f"Answer must be {MAX_FREE_RESPONSE_LENGTH} characters or fewer."}), 400
+
+        response = {
+            "id": next_response_id,
+            "promptId": active_prompt["id"],
+            "name": name,
+            "answer": answer,
+            "createdAt": now_iso(),
+        }
+        next_response_id += 1
+        responses.append(response)
+
+        if len(responses) > MAX_STORED_RESPONSES:
+            del responses[0 : len(responses) - MAX_STORED_RESPONSES]
+
+        bump_state_version_locked()
+
+    return jsonify({"ok": True, "response": response}), 201
 
 
 if __name__ == "__main__":
