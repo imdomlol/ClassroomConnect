@@ -38,6 +38,10 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def normalize_identity(name: str) -> str:
+    return " ".join(name.strip().lower().split())
+
+
 def build_prompt_stats_locked() -> dict | None:
     if not active_prompt:
         return None
@@ -65,6 +69,7 @@ def build_prompt_stats_locked() -> dict | None:
                 "name": item["name"],
                 "answer": item["answer"],
                 "createdAt": item["createdAt"],
+                "updatedAt": item.get("updatedAt"),
             }
             for item in latest
         ],
@@ -258,6 +263,7 @@ def create_prompt():
             "type": question_type,
             "prompt": prompt_text,
             "options": options,
+            "locked": False,
             "createdAt": now_iso(),
         }
         next_prompt_id += 1
@@ -279,6 +285,23 @@ def close_prompt():
     return jsonify({"ok": True})
 
 
+@app.post("/api/instructor/prompt/lock")
+def lock_prompt():
+    global active_prompt
+    with state_lock:
+        if not active_prompt:
+            return jsonify({"error": "No active prompt to lock."}), 404
+
+        if active_prompt.get("locked"):
+            return jsonify({"error": "Prompt is already locked."}), 400
+
+        active_prompt["locked"] = True
+        active_prompt["lockedAt"] = now_iso()
+        bump_state_version_locked()
+
+    return jsonify({"ok": True, "activePrompt": active_prompt})
+
+
 @app.post("/api/prompt/respond")
 def submit_prompt_response():
     client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown")
@@ -291,12 +314,16 @@ def submit_prompt_response():
     payload = request.get_json(silent=True) or {}
     name = str(payload.get("name", "")).strip()
     answer = str(payload.get("answer", "")).strip()
+    identity = normalize_identity(name)
 
     if not name:
         return jsonify({"error": "Name is required."}), 400
 
     if len(name) > MAX_NAME_LENGTH:
         return jsonify({"error": f"Name must be {MAX_NAME_LENGTH} characters or fewer."}), 400
+
+    if not identity:
+        return jsonify({"error": "Name is required."}), 400
 
     if not answer:
         return jsonify({"error": "Answer is required."}), 400
@@ -306,6 +333,9 @@ def submit_prompt_response():
         if not active_prompt:
             return jsonify({"error": "No active question right now."}), 400
 
+        if active_prompt.get("locked"):
+            return jsonify({"error": "This question is locked. Responses are closed."}), 400
+
         if active_prompt["type"] == "multiple_choice":
             if answer not in active_prompt["options"]:
                 return jsonify({"error": "Answer must be one of the listed options."}), 400
@@ -313,15 +343,27 @@ def submit_prompt_response():
             if len(answer) > MAX_FREE_RESPONSE_LENGTH:
                 return jsonify({"error": f"Answer must be {MAX_FREE_RESPONSE_LENGTH} characters or fewer."}), 400
 
-        response = {
-            "id": next_response_id,
-            "promptId": active_prompt["id"],
-            "name": name,
-            "answer": answer,
-            "createdAt": now_iso(),
-        }
-        next_response_id += 1
-        responses.append(response)
+        response = None
+        for item in responses:
+            if item["promptId"] == active_prompt["id"] and item.get("identity") == identity:
+                item["name"] = name
+                item["answer"] = answer
+                item["updatedAt"] = now_iso()
+                response = item
+                break
+
+        if response is None:
+            response = {
+                "id": next_response_id,
+                "promptId": active_prompt["id"],
+                "identity": identity,
+                "name": name,
+                "answer": answer,
+                "createdAt": now_iso(),
+                "updatedAt": None,
+            }
+            next_response_id += 1
+            responses.append(response)
 
         if len(responses) > MAX_STORED_RESPONSES:
             del responses[0 : len(responses) - MAX_STORED_RESPONSES]

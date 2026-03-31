@@ -6,6 +6,8 @@ Version 1 behavior:
 - Interactive posting from connected users
 - Near-real-time updates via server-sent events (SSE) with 2-second polling fallback
 - Instructor view for publishing multiple choice or free response prompts
+- Student name entered once per browser session and reused for actions
+- One response per student name per prompt, editable until instructor locks responses
 - Open access for anyone on the hotspot network
 - In-memory storage only (data resets when app restarts)
 
@@ -63,9 +65,11 @@ http://<HOST_IP>:5000/instructor
 	- Creates/replaces the active prompt.
 - `POST /api/instructor/prompt/close`
 	- Closes the active prompt.
+- `POST /api/instructor/prompt/lock`
+	- Locks the active prompt so no further response edits are allowed.
 - `POST /api/prompt/respond`
 	- JSON body: `{ "name": "...", "answer": "..." }`
-	- Submits a participant response for the active prompt.
+	- Creates or updates that participant's single response for the active prompt while it is unlocked.
 
 ## Safety Limits in v1
 

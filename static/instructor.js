@@ -4,6 +4,7 @@ const promptTextInput = document.getElementById("prompt-text");
 const promptOptionsInput = document.getElementById("prompt-options");
 const optionsGroup = document.getElementById("options-group");
 const promptSubmitButton = document.getElementById("prompt-submit-button");
+const lockPromptButton = document.getElementById("prompt-lock-button");
 const closePromptButton = document.getElementById("prompt-close-button");
 const promptStatusNode = document.getElementById("prompt-status");
 const activePromptTextNode = document.getElementById("active-prompt-text");
@@ -99,10 +100,15 @@ function applySnapshot(data) {
 
   if (!prompt) {
     activePromptTextNode.textContent = "No prompt is active.";
+    lockPromptButton.disabled = true;
+    lockPromptButton.textContent = "Lock Responses";
     renderPromptResults(null, null);
   } else {
     const label = prompt.type === "multiple_choice" ? "Multiple choice" : "Free response";
-    activePromptTextNode.textContent = `${label}: ${prompt.prompt}`;
+    const status = prompt.locked ? "Locked" : "Open";
+    activePromptTextNode.textContent = `${label} (${status}): ${prompt.prompt}`;
+    lockPromptButton.disabled = Boolean(prompt.locked);
+    lockPromptButton.textContent = prompt.locked ? "Responses Locked" : "Lock Responses";
     renderPromptResults(prompt, stats);
   }
 
@@ -216,6 +222,26 @@ closePromptButton.addEventListener("click", async () => {
   }
 });
 
+lockPromptButton.addEventListener("click", async () => {
+  lockPromptButton.disabled = true;
+  showPromptStatus("Locking responses...");
+
+  try {
+    const response = await fetch("/api/instructor/prompt/lock", { method: "POST" });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "Unable to lock prompt responses");
+    }
+
+    showPromptStatus("Prompt responses locked.", "success");
+    await refreshSnapshot();
+  } catch (error) {
+    showPromptStatus(error.message || "Unable to lock prompt responses.", "error");
+    lockPromptButton.disabled = false;
+  }
+});
+
 optionsGroup.hidden = false;
+lockPromptButton.disabled = true;
 connectStream();
 startPolling();

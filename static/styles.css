@@ -33,6 +33,26 @@ body {
   pointer-events: none;
 }
 
+.name-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(13, 25, 45, 0.58);
+  backdrop-filter: blur(4px);
+}
+
+.name-gate-card {
+  width: min(430px, 100%);
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 1rem;
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.18);
+}
+
 .shell {
   position: relative;
   z-index: 1;

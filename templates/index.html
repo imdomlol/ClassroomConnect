@@ -8,6 +8,21 @@
   </head>
   <body>
     <div class="background-grid" aria-hidden="true"></div>
+    <section id="name-gate" class="name-gate" aria-labelledby="join-title">
+      <div class="name-gate-card">
+        <p class="eyebrow">Join Session</p>
+        <h2 id="join-title">Enter Your Name</h2>
+        <p class="subtitle">You only need to do this once per browser session.</p>
+        <form id="join-form" novalidate>
+          <label for="join-name">Name</label>
+          <input id="join-name" maxlength="40" required placeholder="Alex" />
+          <div class="form-row">
+            <button id="join-button" type="submit">Join</button>
+            <p id="join-status" class="status" aria-live="polite"></p>
+          </div>
+        </form>
+      </div>
+    </section>
     <main class="shell">
       <header class="hero">
         <p class="eyebrow">Local Classroom Board</p>
@@ -15,6 +30,7 @@
         <p class="subtitle">
           Anyone on this Wi-Fi can post quick updates and see responses in near real time.
         </p>
+        <p id="active-student" class="subtitle"></p>
         <p class="subtitle">
           Instructor controls are available at <a href="/instructor">Instructor View</a>.
         </p>
@@ -29,9 +45,6 @@
         <p id="question-text" class="question-text">No active question yet.</p>
 
         <form id="answer-form" novalidate>
-          <label for="answer-name">Your name</label>
-          <input id="answer-name" name="answerName" maxlength="40" required placeholder="Alex" />
-
           <div id="answer-input-area"></div>
 
           <div class="form-row">
@@ -46,9 +59,6 @@
       <section class="panel form-panel" aria-labelledby="post-title">
         <h2 id="post-title">Post an Update</h2>
         <form id="submission-form" novalidate>
-          <label for="name">Your name</label>
-          <input id="name" name="name" maxlength="40" required placeholder="Alex" />
-
           <label for="message">Message</label>
           <textarea
             id="message"

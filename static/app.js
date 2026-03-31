@@ -1,5 +1,4 @@
 const form = document.getElementById("submission-form");
-const nameInput = document.getElementById("name");
 const messageInput = document.getElementById("message");
 const submitButton = document.getElementById("submit-button");
 const statusNode = document.getElementById("status");
@@ -7,18 +6,25 @@ const feedNode = document.getElementById("feed");
 const emptyStateNode = document.getElementById("empty-state");
 const lastUpdatedNode = document.getElementById("last-updated");
 const answerForm = document.getElementById("answer-form");
-const answerNameInput = document.getElementById("answer-name");
 const answerInputArea = document.getElementById("answer-input-area");
 const answerSubmitButton = document.getElementById("answer-submit-button");
 const answerStatusNode = document.getElementById("answer-status");
 const questionStatusNode = document.getElementById("question-status");
 const questionTextNode = document.getElementById("question-text");
 const promptResultsNode = document.getElementById("prompt-results");
+const nameGate = document.getElementById("name-gate");
+const joinForm = document.getElementById("join-form");
+const joinNameInput = document.getElementById("join-name");
+const joinStatusNode = document.getElementById("join-status");
+const activeStudentNode = document.getElementById("active-student");
 
 let latestKnownId = 0;
 let pollingTimer = null;
 let stream = null;
 let currentPrompt = null;
+let sessionName = "";
+
+const SESSION_NAME_KEY = "classroomconnect_student_name";
 
 function toLocalTime(isoString) {
   const date = new Date(isoString);
@@ -42,6 +48,37 @@ function showAnswerStatus(message, type = "") {
   if (type) {
     answerStatusNode.classList.add(type);
   }
+}
+
+function showJoinStatus(message, type = "") {
+  joinStatusNode.textContent = message;
+  joinStatusNode.classList.remove("success", "error");
+  if (type) {
+    joinStatusNode.classList.add(type);
+  }
+}
+
+function updateSessionBanner() {
+  activeStudentNode.textContent = sessionName ? `Signed in as ${sessionName}` : "";
+}
+
+function setSessionName(name) {
+  sessionName = name;
+  sessionStorage.setItem(SESSION_NAME_KEY, name);
+  nameGate.hidden = true;
+  updateSessionBanner();
+}
+
+function ensureSessionName() {
+  const stored = (sessionStorage.getItem(SESSION_NAME_KEY) || "").trim();
+  if (stored) {
+    sessionName = stored;
+    nameGate.hidden = true;
+    updateSessionBanner();
+    return;
+  }
+
+  nameGate.hidden = false;
 }
 
 function renderFeed(submissions) {
@@ -106,7 +143,7 @@ function renderPromptInput(prompt) {
     `;
   }
 
-  answerSubmitButton.disabled = false;
+  answerSubmitButton.disabled = !sessionName || Boolean(prompt.locked);
 }
 
 function renderPromptResults(prompt, stats) {
@@ -192,11 +229,16 @@ function applySnapshot(data) {
     renderPromptInput(null);
     renderPromptResults(null, null);
   } else {
-    questionStatusNode.textContent = incomingPrompt.type === "multiple_choice" ? "Multiple choice" : "Free response";
+    const promptType = incomingPrompt.type === "multiple_choice" ? "Multiple choice" : "Free response";
+    questionStatusNode.textContent = incomingPrompt.locked ? `${promptType} - Locked` : promptType;
     questionTextNode.textContent = incomingPrompt.prompt;
     if (promptChanged) {
       showAnswerStatus("", "");
       renderPromptInput(incomingPrompt);
+    }
+    if (incomingPrompt.locked) {
+      answerSubmitButton.disabled = true;
+      showAnswerStatus("Instructor locked this question.", "error");
     }
     renderPromptResults(incomingPrompt, data.promptStats || null);
   }
@@ -244,13 +286,19 @@ function connectStream() {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
+  if (!sessionName) {
+    showStatus("Enter your name to join first.", "error");
+    nameGate.hidden = false;
+    return;
+  }
+
   const payload = {
-    name: nameInput.value.trim(),
+    name: sessionName,
     message: messageInput.value.trim(),
   };
 
-  if (!payload.name || !payload.message) {
-    showStatus("Name and message are required.", "error");
+  if (!payload.message) {
+    showStatus("Message is required.", "error");
     return;
   }
 
@@ -282,14 +330,19 @@ form.addEventListener("submit", async (event) => {
 answerForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
+  if (!sessionName) {
+    showAnswerStatus("Enter your name to join first.", "error");
+    nameGate.hidden = false;
+    return;
+  }
+
   if (!currentPrompt) {
     showAnswerStatus("No active question right now.", "error");
     return;
   }
 
-  const name = answerNameInput.value.trim();
-  if (!name) {
-    showAnswerStatus("Name is required.", "error");
+  if (currentPrompt.locked) {
+    showAnswerStatus("This question is locked.", "error");
     return;
   }
 
@@ -317,7 +370,7 @@ answerForm.addEventListener("submit", async (event) => {
     const response = await fetch("/api/prompt/respond", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, answer }),
+      body: JSON.stringify({ name: sessionName, answer }),
     });
 
     const data = await response.json();
@@ -334,5 +387,24 @@ answerForm.addEventListener("submit", async (event) => {
   }
 });
 
+joinForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const candidate = joinNameInput.value.trim();
+
+  if (!candidate) {
+    showJoinStatus("Name is required.", "error");
+    return;
+  }
+
+  setSessionName(candidate);
+  showJoinStatus("", "");
+  showStatus("", "");
+  showAnswerStatus("", "");
+  if (currentPrompt) {
+    renderPromptInput(currentPrompt);
+  }
+});
+
+ensureSessionName();
 connectStream();
 startPolling();
