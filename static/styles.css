@@ -44,6 +44,10 @@ body {
   backdrop-filter: blur(4px);
 }
 
+.name-gate[hidden] {
+  display: none;
+}
+
 .name-gate-card {
   width: min(430px, 100%);
   background: #ffffff;
