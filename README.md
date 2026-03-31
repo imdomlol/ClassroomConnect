@@ -8,6 +8,8 @@ Version 1 behavior:
 - Instructor view for publishing multiple choice or free response prompts
 - Student name entered once per browser session and reused for actions
 - One response per student name per prompt, editable until instructor locks responses
+- Instructor lesson display mode for text slides or uploaded image slides
+- Live lesson navigation to keep all student screens in sync
 - Open access for anyone on the hotspot network
 - In-memory storage only (data resets when app restarts)
 
@@ -57,6 +59,8 @@ http://<HOST_IP>:5000/instructor
 	- Streams live snapshot events for near-real-time updates.
 - `GET /api/prompt`
 	- Returns active prompt and prompt response summary.
+- `GET /api/lesson`
+	- Returns active lesson deck and current slide index.
 - `POST /api/submissions`
 	- JSON body: `{ "name": "...", "message": "..." }`
 	- Enforces basic validation and rate limiting.
@@ -70,6 +74,17 @@ http://<HOST_IP>:5000/instructor
 - `POST /api/prompt/respond`
 	- JSON body: `{ "name": "...", "answer": "..." }`
 	- Creates or updates that participant's single response for the active prompt while it is unlocked.
+- `POST /api/instructor/lesson/custom`
+	- JSON body: `{ "title": "...", "slides": [{ "title": "...", "body": "..." }] }`
+	- Publishes a text-based lesson deck.
+- `POST /api/instructor/lesson/upload-images`
+	- Multipart form data: `title` and `files` (image slides)
+	- Publishes an image-based lesson deck.
+- `POST /api/instructor/lesson/navigate`
+	- JSON body: `{ "direction": "next"|"prev" }` or `{ "index": 0 }`
+	- Moves the lesson to a different slide.
+- `POST /api/instructor/lesson/clear`
+	- Clears the active lesson deck.
 
 ## Safety Limits in v1
 
