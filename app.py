@@ -68,6 +68,43 @@ def clamp_slide_index(index: int, total: int) -> int:
     return max(0, min(index, total - 1))
 
 
+def normalize_lesson_mode(value: str) -> str:
+    mode = str(value or "append").strip().lower()
+    if mode not in {"append", "replace"}:
+        return "append"
+    return mode
+
+
+def apply_lesson_update_locked(title: str, incoming_slides: list[dict], mode: str) -> tuple[dict, int]:
+    global active_lesson, current_slide_index, next_lesson_id
+
+    if mode == "replace" or not active_lesson:
+        active_lesson = {
+            "id": next_lesson_id,
+            "type": "mixed",
+            "title": title,
+            "slides": list(incoming_slides),
+            "createdAt": now_iso(),
+            "updatedAt": now_iso(),
+        }
+        next_lesson_id += 1
+        current_slide_index = 0
+        return active_lesson, current_slide_index
+
+    total_after = len(active_lesson.get("slides", [])) + len(incoming_slides)
+    if total_after > MAX_LESSON_SLIDES:
+        raise ValueError(f"Lesson can include up to {MAX_LESSON_SLIDES} slides.")
+
+    if title:
+        active_lesson["title"] = title
+
+    active_lesson.setdefault("slides", [])
+    active_lesson["slides"].extend(incoming_slides)
+    active_lesson["updatedAt"] = now_iso()
+    current_slide_index = len(active_lesson["slides"]) - len(incoming_slides)
+    return active_lesson, current_slide_index
+
+
 def build_prompt_stats_locked(include_names: bool = False) -> dict | None:
     if not active_prompt:
         return None
@@ -464,6 +501,7 @@ def submit_prompt_response():
 def create_custom_lesson():
     payload = request.get_json(silent=True) or {}
     title = str(payload.get("title", "")).strip()
+    mode = normalize_lesson_mode(payload.get("mode", "append"))
     raw_slides = payload.get("slides", [])
 
     if not title:
@@ -494,25 +532,21 @@ def create_custom_lesson():
 
         slides.append({"kind": "text", "title": slide_title, "body": slide_body})
 
-    global active_lesson, current_slide_index, next_lesson_id
     with state_lock:
-        active_lesson = {
-            "id": next_lesson_id,
-            "type": "custom",
-            "title": title,
-            "slides": slides,
-            "createdAt": now_iso(),
-        }
-        next_lesson_id += 1
-        current_slide_index = 0
+        try:
+            updated_lesson, updated_index = apply_lesson_update_locked(title, slides, mode)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
         bump_state_version_locked()
 
-    return jsonify({"ok": True, "activeLesson": active_lesson, "currentSlideIndex": current_slide_index}), 201
+    return jsonify({"ok": True, "activeLesson": updated_lesson, "currentSlideIndex": updated_index}), 201
 
 
 @app.post("/api/instructor/lesson/upload-images")
 def upload_image_lesson():
     title = str(request.form.get("title", "")).strip()
+    mode = normalize_lesson_mode(request.form.get("mode", "append"))
     files = request.files.getlist("files")
 
     if not title:
@@ -545,20 +579,15 @@ def upload_image_lesson():
             }
         )
 
-    global active_lesson, current_slide_index, next_lesson_id
     with state_lock:
-        active_lesson = {
-            "id": next_lesson_id,
-            "type": "image",
-            "title": title,
-            "slides": slides,
-            "createdAt": now_iso(),
-        }
-        next_lesson_id += 1
-        current_slide_index = 0
+        try:
+            updated_lesson, updated_index = apply_lesson_update_locked(title, slides, mode)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
         bump_state_version_locked()
 
-    return jsonify({"ok": True, "activeLesson": active_lesson, "currentSlideIndex": current_slide_index}), 201
+    return jsonify({"ok": True, "activeLesson": updated_lesson, "currentSlideIndex": updated_index}), 201
 
 
 @app.post("/api/instructor/lesson/navigate")
@@ -587,6 +616,47 @@ def navigate_lesson():
 
         bump_state_version_locked()
         snapshot = snapshot_state_locked()
+
+    return jsonify(
+        {
+            "ok": True,
+            "activeLesson": snapshot["activeLesson"],
+            "currentSlideIndex": snapshot["currentSlideIndex"],
+        }
+    )
+
+
+@app.post("/api/instructor/lesson/remove-slide")
+def remove_lesson_slide():
+    payload = request.get_json(silent=True) or {}
+    requested_index = payload.get("index")
+    if not isinstance(requested_index, int):
+        return jsonify({"error": "A numeric slide index is required."}), 400
+
+    global active_lesson, current_slide_index
+    with state_lock:
+        if not active_lesson:
+            return jsonify({"error": "No active lesson."}), 404
+
+        slides = active_lesson.get("slides", [])
+        if requested_index < 0 or requested_index >= len(slides):
+            return jsonify({"error": "Slide index is out of range."}), 400
+
+        slides.pop(requested_index)
+
+        if not slides:
+            active_lesson = None
+            current_slide_index = 0
+        else:
+            if current_slide_index > requested_index:
+                current_slide_index -= 1
+            elif current_slide_index == requested_index:
+                current_slide_index = clamp_slide_index(current_slide_index, len(slides))
+
+            active_lesson["updatedAt"] = now_iso()
+
+        bump_state_version_locked()
+        snapshot = snapshot_state_locked(include_names=True)
 
     return jsonify(
         {

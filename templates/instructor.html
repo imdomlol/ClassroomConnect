@@ -74,6 +74,11 @@
           <label for="lesson-title-input">Lesson title</label>
           <input id="lesson-title-input" maxlength="120" placeholder="Algebra Review" required />
 
+          <label class="inline-check" for="lesson-custom-mode-append">
+            <input id="lesson-custom-mode-append" type="checkbox" checked />
+            <span>Add to existing lesson timeline (uncheck to replace all slides)</span>
+          </label>
+
           <label for="lesson-slides-input">Text slides (separate each slide with ---)</label>
           <textarea
             id="lesson-slides-input"
@@ -82,7 +87,7 @@
           ></textarea>
 
           <div class="form-row">
-            <button id="lesson-publish-custom" type="submit">Publish Text Lesson</button>
+            <button id="lesson-publish-custom" type="submit">Publish / Add Text Slides</button>
             <p id="lesson-status" class="status" aria-live="polite"></p>
           </div>
         </form>
@@ -91,11 +96,16 @@
           <label for="lesson-image-title">Image lesson title</label>
           <input id="lesson-image-title" maxlength="120" placeholder="Biology Diagram Set" required />
 
+          <label class="inline-check" for="lesson-image-mode-append">
+            <input id="lesson-image-mode-append" type="checkbox" checked />
+            <span>Add uploaded images to existing timeline (uncheck to replace all slides)</span>
+          </label>
+
           <label for="lesson-image-files">Upload image slides</label>
           <input id="lesson-image-files" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple required />
 
           <div class="form-row">
-            <button id="lesson-upload-button" type="submit">Upload Image Lesson</button>
+            <button id="lesson-upload-button" type="submit">Upload / Add Image Slides</button>
           </div>
         </form>
 
@@ -106,6 +116,7 @@
         </div>
 
         <div id="lesson-preview" class="prompt-results" hidden></div>
+        <div id="lesson-timeline" class="lesson-timeline" hidden></div>
       </section>
     </main>
 

@@ -12,10 +12,12 @@ const activePromptResultsNode = document.getElementById("active-prompt-results")
 const lastUpdatedNode = document.getElementById("last-updated");
 const lessonCustomForm = document.getElementById("lesson-custom-form");
 const lessonTitleInput = document.getElementById("lesson-title-input");
+const lessonCustomModeAppend = document.getElementById("lesson-custom-mode-append");
 const lessonSlidesInput = document.getElementById("lesson-slides-input");
 const lessonPublishCustomButton = document.getElementById("lesson-publish-custom");
 const lessonUploadForm = document.getElementById("lesson-upload-form");
 const lessonImageTitleInput = document.getElementById("lesson-image-title");
+const lessonImageModeAppend = document.getElementById("lesson-image-mode-append");
 const lessonImageFilesInput = document.getElementById("lesson-image-files");
 const lessonUploadButton = document.getElementById("lesson-upload-button");
 const lessonPrevButton = document.getElementById("lesson-prev");
@@ -24,9 +26,12 @@ const lessonClearButton = document.getElementById("lesson-clear");
 const lessonSyncStatusNode = document.getElementById("lesson-sync-status");
 const lessonStatusNode = document.getElementById("lesson-status");
 const lessonPreviewNode = document.getElementById("lesson-preview");
+const lessonTimelineNode = document.getElementById("lesson-timeline");
 
 let stream = null;
 let pollingTimer = null;
+let currentLesson = null;
+let currentLessonSlideIndex = 0;
 
 function toLocalTime(isoString) {
   const date = new Date(isoString);
@@ -76,9 +81,13 @@ function parseLessonSlides(rawText) {
 
 function renderLessonPreview(lesson, currentSlideIndex) {
   if (!lesson || !lesson.slides || !lesson.slides.length) {
+    currentLesson = null;
+    currentLessonSlideIndex = 0;
     lessonSyncStatusNode.textContent = "No active lesson.";
     lessonPreviewNode.hidden = true;
     lessonPreviewNode.innerHTML = "";
+    lessonTimelineNode.hidden = true;
+    lessonTimelineNode.innerHTML = "";
     lessonPrevButton.disabled = true;
     lessonNextButton.disabled = true;
     lessonClearButton.disabled = true;
@@ -86,6 +95,8 @@ function renderLessonPreview(lesson, currentSlideIndex) {
   }
 
   const index = Math.max(0, Math.min(currentSlideIndex || 0, lesson.slides.length - 1));
+  currentLesson = lesson;
+  currentLessonSlideIndex = index;
   const slide = lesson.slides[index];
   lessonSyncStatusNode.textContent = `${lesson.title} (${index + 1}/${lesson.slides.length})`;
   lessonPreviewNode.hidden = false;
@@ -110,6 +121,55 @@ function renderLessonPreview(lesson, currentSlideIndex) {
   lessonPrevButton.disabled = index <= 0;
   lessonNextButton.disabled = index >= lesson.slides.length - 1;
   lessonClearButton.disabled = false;
+
+  const timeline = lesson.slides
+    .map((item, itemIndex) => {
+      const activeClass = itemIndex === index ? " active" : "";
+      const kindLabel = item.kind === "image" ? "Image" : "Text";
+      return `
+        <div class="timeline-slide${activeClass}" data-slide-index="${itemIndex}">
+          <button type="button" class="timeline-slide-main" data-slide-index="${itemIndex}" title="Go to slide ${itemIndex + 1}">
+            <span class="timeline-slide-kind">${kindLabel} ${itemIndex + 1}</span>
+            <strong>${escapeHtml(item.title || `Slide ${itemIndex + 1}`)}</strong>
+          </button>
+          <button type="button" class="timeline-slide-remove" data-remove-index="${itemIndex}" title="Remove this slide">X</button>
+        </div>
+      `;
+    })
+    .join("");
+
+  lessonTimelineNode.hidden = false;
+  lessonTimelineNode.innerHTML = timeline;
+}
+
+async function navigateToSlide(index) {
+  const response = await fetch("/api/instructor/lesson/navigate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ index }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || "Unable to navigate lesson");
+  }
+
+  await refreshSnapshot();
+}
+
+async function removeSlide(index) {
+  const response = await fetch("/api/instructor/lesson/remove-slide", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ index }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || "Unable to remove slide");
+  }
+
+  await refreshSnapshot();
 }
 
 function parseOptions(text) {
@@ -321,6 +381,7 @@ lessonCustomForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const title = lessonTitleInput.value.trim();
   const slides = parseLessonSlides(lessonSlidesInput.value);
+  const mode = lessonCustomModeAppend.checked ? "append" : "replace";
 
   if (!title) {
     showLessonStatus("Lesson title is required.", "error");
@@ -339,7 +400,7 @@ lessonCustomForm.addEventListener("submit", async (event) => {
     const response = await fetch("/api/instructor/lesson/custom", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, slides }),
+      body: JSON.stringify({ title, slides, mode }),
     });
 
     const data = await response.json();
@@ -347,7 +408,7 @@ lessonCustomForm.addEventListener("submit", async (event) => {
       throw new Error(data.error || "Unable to publish lesson");
     }
 
-    showLessonStatus("Text lesson published.", "success");
+    showLessonStatus(mode === "append" ? "Text slides added to timeline." : "Lesson replaced with text slides.", "success");
     await refreshSnapshot();
   } catch (error) {
     showLessonStatus(error.message || "Unable to publish lesson.", "error");
@@ -360,6 +421,7 @@ lessonUploadForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const title = lessonImageTitleInput.value.trim();
+  const mode = lessonImageModeAppend.checked ? "append" : "replace";
   const files = lessonImageFilesInput.files;
   if (!title) {
     showLessonStatus("Image lesson title is required.", "error");
@@ -373,6 +435,7 @@ lessonUploadForm.addEventListener("submit", async (event) => {
 
   const formData = new FormData();
   formData.append("title", title);
+  formData.append("mode", mode);
   Array.from(files).forEach((file) => formData.append("files", file));
 
   lessonUploadButton.disabled = true;
@@ -389,7 +452,7 @@ lessonUploadForm.addEventListener("submit", async (event) => {
       throw new Error(data.error || "Unable to upload image lesson");
     }
 
-    showLessonStatus("Image lesson published.", "success");
+    showLessonStatus(mode === "append" ? "Image slides added to timeline." : "Lesson replaced with image slides.", "success");
     lessonImageFilesInput.value = "";
     await refreshSnapshot();
   } catch (error) {
@@ -401,19 +464,8 @@ lessonUploadForm.addEventListener("submit", async (event) => {
 
 lessonPrevButton.addEventListener("click", async () => {
   try {
-    const response = await fetch("/api/instructor/lesson/navigate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ direction: "prev" }),
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || "Unable to navigate lesson");
-    }
-
+    await navigateToSlide(currentLessonSlideIndex - 1);
     showLessonStatus("Moved to previous slide.", "success");
-    await refreshSnapshot();
   } catch (error) {
     showLessonStatus(error.message || "Unable to navigate lesson.", "error");
   }
@@ -421,19 +473,8 @@ lessonPrevButton.addEventListener("click", async () => {
 
 lessonNextButton.addEventListener("click", async () => {
   try {
-    const response = await fetch("/api/instructor/lesson/navigate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ direction: "next" }),
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || "Unable to navigate lesson");
-    }
-
+    await navigateToSlide(currentLessonSlideIndex + 1);
     showLessonStatus("Moved to next slide.", "success");
-    await refreshSnapshot();
   } catch (error) {
     showLessonStatus(error.message || "Unable to navigate lesson.", "error");
   }
@@ -454,10 +495,45 @@ lessonClearButton.addEventListener("click", async () => {
   }
 });
 
+lessonTimelineNode.addEventListener("click", async (event) => {
+  const removeButton = event.target.closest("button[data-remove-index]");
+  if (removeButton) {
+    const index = Number.parseInt(removeButton.dataset.removeIndex || "", 10);
+    if (Number.isNaN(index)) {
+      return;
+    }
+
+    try {
+      await removeSlide(index);
+      showLessonStatus("Slide removed.", "success");
+    } catch (error) {
+      showLessonStatus(error.message || "Unable to remove slide.", "error");
+    }
+    return;
+  }
+
+  const goToButton = event.target.closest("button[data-slide-index]");
+  if (!goToButton) {
+    return;
+  }
+
+  const index = Number.parseInt(goToButton.dataset.slideIndex || "", 10);
+  if (Number.isNaN(index)) {
+    return;
+  }
+
+  try {
+    await navigateToSlide(index);
+  } catch (error) {
+    showLessonStatus(error.message || "Unable to navigate lesson.", "error");
+  }
+});
+
 optionsGroup.hidden = false;
 lockPromptButton.disabled = true;
 lessonPrevButton.disabled = true;
 lessonNextButton.disabled = true;
 lessonClearButton.disabled = true;
+lessonTimelineNode.hidden = true;
 connectStream();
 startPolling();

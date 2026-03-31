@@ -165,6 +165,19 @@ h1 {
   padding-top: 0.8rem;
 }
 
+.inline-check {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0.8rem 0 0.3rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.inline-check input {
+  width: auto;
+}
+
 .lesson-nav {
   margin-top: 0.9rem;
   display: flex;
@@ -182,6 +195,74 @@ h1 {
 
 .compact.lesson-image-slide img {
   max-height: 260px;
+}
+
+.lesson-timeline {
+  margin-top: 0.9rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.8rem;
+  display: flex;
+  gap: 0.6rem;
+  overflow-x: auto;
+  padding-bottom: 0.3rem;
+}
+
+.timeline-slide {
+  min-width: 220px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-strong);
+  padding: 0.45rem;
+}
+
+.timeline-slide.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(44, 174, 193, 0.35);
+}
+
+.timeline-slide-main {
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  text-align: left;
+  padding: 0;
+  border-radius: 0;
+}
+
+.timeline-slide-main:hover {
+  background: transparent;
+  transform: none;
+}
+
+.timeline-slide-kind {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+
+.timeline-slide-main strong {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.9rem;
+  line-height: 1.25;
+}
+
+.timeline-slide-remove {
+  align-self: start;
+  background: var(--ghost-bg);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 0.2rem 0.45rem;
+}
+
+.timeline-slide-remove:hover {
+  background: var(--error);
+  color: #0c0f18;
 }
 
 .chat-sidebar {

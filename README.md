@@ -12,6 +12,7 @@ Version 1 behavior:
 - Student view never displays responder names; names are instructor-only
 - Instructor lesson display mode for text slides or uploaded image slides
 - Live lesson navigation to keep all student screens in sync
+- Instructor lesson timeline with append mode and per-slide removal
 - Open access for anyone on the hotspot network
 - In-memory storage only (data resets when app restarts)
 
@@ -81,14 +82,17 @@ http://<HOST_IP>:5000/instructor
 	- JSON body: `{ "name": "...", "answer": "..." }`
 	- Creates or updates that participant's single response for the active prompt while it is unlocked.
 - `POST /api/instructor/lesson/custom`
-	- JSON body: `{ "title": "...", "slides": [{ "title": "...", "body": "..." }] }`
-	- Publishes a text-based lesson deck.
+	- JSON body: `{ "title": "...", "slides": [{ "title": "...", "body": "..." }], "mode": "append"|"replace" }`
+	- Adds text slides to the current lesson timeline or replaces it.
 - `POST /api/instructor/lesson/upload-images`
-	- Multipart form data: `title` and `files` (image slides)
-	- Publishes an image-based lesson deck.
+	- Multipart form data: `title`, `mode`, and `files` (image slides)
+	- Adds image slides to the current lesson timeline or replaces it.
 - `POST /api/instructor/lesson/navigate`
 	- JSON body: `{ "direction": "next"|"prev" }` or `{ "index": 0 }`
 	- Moves the lesson to a different slide.
+- `POST /api/instructor/lesson/remove-slide`
+	- JSON body: `{ "index": 0 }`
+	- Removes a single slide from the active lesson timeline.
 - `POST /api/instructor/lesson/clear`
 	- Clears the active lesson deck.
 
