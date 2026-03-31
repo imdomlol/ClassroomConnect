@@ -8,6 +8,8 @@ const emptyStateNode = document.getElementById("empty-state");
 const lastUpdatedNode = document.getElementById("last-updated");
 
 let latestKnownId = 0;
+let pollingTimer = null;
+let stream = null;
 
 function toLocalTime(isoString) {
   const date = new Date(isoString);
@@ -67,17 +69,60 @@ async function refreshFeed() {
     }
 
     const data = await response.json();
-    renderFeed(data.submissions || []);
-
-    const newest = (data.submissions || []).at(-1);
-    if (newest && newest.id !== latestKnownId) {
-      latestKnownId = newest.id;
-    }
-
-    lastUpdatedNode.textContent = `Last updated: ${toLocalTime(data.serverTime)}`;
+    applySnapshot(data);
   } catch {
     lastUpdatedNode.textContent = "Connection issue. Retrying...";
   }
+}
+
+function applySnapshot(data) {
+  renderFeed(data.submissions || []);
+
+  const newest = (data.submissions || []).at(-1);
+  if (newest && newest.id !== latestKnownId) {
+    latestKnownId = newest.id;
+  }
+
+  lastUpdatedNode.textContent = `Last updated: ${toLocalTime(data.serverTime)}`;
+}
+
+function startPolling() {
+  if (pollingTimer) {
+    return;
+  }
+
+  refreshFeed();
+  pollingTimer = setInterval(refreshFeed, 2000);
+}
+
+function stopPolling() {
+  if (pollingTimer) {
+    clearInterval(pollingTimer);
+    pollingTimer = null;
+  }
+}
+
+function connectStream() {
+  if (!("EventSource" in window)) {
+    startPolling();
+    return;
+  }
+
+  stream = new EventSource("/api/stream");
+
+  stream.addEventListener("snapshot", (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      applySnapshot(data);
+      stopPolling();
+    } catch {
+      startPolling();
+    }
+  });
+
+  stream.onerror = () => {
+    startPolling();
+  };
 }
 
 form.addEventListener("submit", async (event) => {
@@ -118,5 +163,5 @@ form.addEventListener("submit", async (event) => {
   }
 });
 
-refreshFeed();
-setInterval(refreshFeed, 2000);
+connectStream();
+startPolling();

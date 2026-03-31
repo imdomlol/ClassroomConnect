@@ -4,7 +4,7 @@ ClassroomConnect is a local-only classroom board that runs on your host device a
 
 Version 1 behavior:
 - Interactive posting from connected users
-- Near-real-time updates via 2-second polling
+- Near-real-time updates via server-sent events (SSE) with 2-second polling fallback
 - Open access for anyone on the hotspot network
 - In-memory storage only (data resets when app restarts)
 
@@ -44,6 +44,8 @@ http://192.168.4.1:5000
 
 - `GET /api/submissions`
 	- Returns current submissions and server time.
+- `GET /api/stream`
+	- Streams live snapshot events for near-real-time updates.
 - `POST /api/submissions`
 	- JSON body: `{ "name": "...", "message": "..." }`
 	- Enforces basic validation and rate limiting.
@@ -87,6 +89,6 @@ sudo systemctl status classroomconnect
 	- Confirm client is on the same hotspot network.
 	- Confirm firewall allows TCP port `5000`.
 - Posts do not appear quickly:
-	- Feed refreshes every 2 seconds by design.
+	- Clients use SSE when available and fall back to 2-second polling.
 - Data disappeared after restart:
 	- Expected in v1; storage is in memory only.

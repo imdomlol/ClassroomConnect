@@ -1,10 +1,11 @@
 from collections import defaultdict, deque
 from datetime import datetime, timezone
 from threading import Lock
+import json
 import os
 import time
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request, stream_with_context
 
 app = Flask(__name__)
 
@@ -25,6 +26,15 @@ MAX_STORED_SUBMISSIONS = 200
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def snapshot_state() -> dict:
+    with state_lock:
+        return {
+            "submissions": list(submissions),
+            "count": len(submissions),
+            "serverTime": now_iso(),
+        }
 
 
 def is_rate_limited(client_ip: str) -> bool:
@@ -48,14 +58,37 @@ def index():
 
 @app.get("/api/submissions")
 def get_submissions():
-    with state_lock:
-        return jsonify(
-            {
-                "submissions": list(submissions),
-                "count": len(submissions),
-                "serverTime": now_iso(),
-            }
-        )
+    return jsonify(snapshot_state())
+
+
+@app.get("/api/stream")
+def stream_submissions():
+    @stream_with_context
+    def event_stream():
+        last_seen_id = -1
+        last_ping = 0.0
+
+        while True:
+            snapshot = snapshot_state()
+            latest = snapshot["submissions"][-1]["id"] if snapshot["submissions"] else 0
+
+            if latest != last_seen_id:
+                last_seen_id = latest
+                yield f"event: snapshot\ndata: {json.dumps(snapshot)}\n\n"
+
+            now = time.time()
+            if now - last_ping > 20:
+                last_ping = now
+                yield "event: ping\ndata: ok\n\n"
+
+            time.sleep(1)
+
+    headers = {
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+    }
+    return Response(event_stream(), mimetype="text/event-stream", headers=headers)
 
 
 @app.post("/api/submissions")
