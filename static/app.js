@@ -20,6 +20,8 @@ const activeStudentNode = document.getElementById("active-student");
 const chatSidebar = document.getElementById("chat-sidebar");
 const chatBody = document.getElementById("chat-body");
 const chatToggleButton = document.getElementById("chat-toggle");
+const lessonStatusNode = document.getElementById("lesson-status");
+const lessonStageNode = document.getElementById("lesson-stage");
 
 let latestKnownId = 0;
 let pollingTimer = null;
@@ -213,6 +215,36 @@ function renderPromptResults(prompt, stats) {
   `;
 }
 
+function renderLesson(lesson, index) {
+  if (!lesson || !Array.isArray(lesson.slides) || !lesson.slides.length) {
+    lessonStatusNode.textContent = "Waiting for instructor lesson...";
+    lessonStageNode.innerHTML = '<p class="muted">No active lesson yet.</p>';
+    return;
+  }
+
+  const clampedIndex = Math.max(0, Math.min(index || 0, lesson.slides.length - 1));
+  const slide = lesson.slides[clampedIndex];
+  lessonStatusNode.textContent = `${lesson.title} (${clampedIndex + 1}/${lesson.slides.length})`;
+
+  if (slide.kind === "image") {
+    lessonStageNode.innerHTML = `
+      <figure class="lesson-image-slide">
+        <img src="${slide.imageUrl}" alt="${escapeHtml(slide.title || "Lesson slide")}" />
+        <figcaption>${escapeHtml(slide.title || "")}</figcaption>
+      </figure>
+    `;
+    return;
+  }
+
+  const body = escapeHtml(slide.body || "").replaceAll("\n", "<br>");
+  lessonStageNode.innerHTML = `
+    <article class="lesson-text-slide">
+      <h3>${escapeHtml(slide.title || "Slide")}</h3>
+      <p>${body || "No content on this slide."}</p>
+    </article>
+  `;
+}
+
 async function refreshFeed() {
   try {
     const response = await fetch("/api/submissions", { cache: "no-store" });
@@ -229,6 +261,7 @@ async function refreshFeed() {
 
 function applySnapshot(data) {
   renderFeed(data.submissions || []);
+  renderLesson(data.activeLesson || null, data.currentSlideIndex || 0);
 
   const newest = (data.submissions || []).at(-1);
   if (newest && newest.id !== latestKnownId) {
