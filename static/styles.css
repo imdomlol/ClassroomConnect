@@ -120,6 +120,11 @@ h1 {
   padding: 0.65rem;
 }
 
+.instructor-timeline-dock {
+  display: grid;
+  gap: 0.5rem;
+}
+
 .tab-button {
   background: var(--ghost-bg);
   color: var(--ink-soft);
@@ -258,6 +263,15 @@ h1 {
 .timeline-slide.active {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px rgba(44, 174, 193, 0.35);
+}
+
+.timeline-slide.dragging {
+  opacity: 0.55;
+}
+
+.timeline-slide.drop-target {
+  border-color: #90c7ff;
+  box-shadow: 0 0 0 1px rgba(144, 199, 255, 0.35);
 }
 
 .timeline-slide-main {

@@ -667,6 +667,61 @@ def remove_lesson_slide():
     )
 
 
+@app.post("/api/instructor/lesson/reorder-slides")
+def reorder_lesson_slides():
+    payload = request.get_json(silent=True) or {}
+    from_index = payload.get("fromIndex")
+    to_index = payload.get("toIndex")
+
+    if not isinstance(from_index, int) or not isinstance(to_index, int):
+        return jsonify({"error": "fromIndex and toIndex must be numeric indices."}), 400
+
+    global active_lesson, current_slide_index
+    with state_lock:
+        if not active_lesson:
+            return jsonify({"error": "No active lesson."}), 404
+
+        slides = active_lesson.get("slides", [])
+        total = len(slides)
+        if total <= 1:
+            return jsonify({"error": "Need at least two slides to reorder."}), 400
+
+        if from_index < 0 or from_index >= total or to_index < 0 or to_index >= total:
+            return jsonify({"error": "Slide index is out of range."}), 400
+
+        if from_index == to_index:
+            snapshot = snapshot_state_locked(include_names=True)
+            return jsonify(
+                {
+                    "ok": True,
+                    "activeLesson": snapshot["activeLesson"],
+                    "currentSlideIndex": snapshot["currentSlideIndex"],
+                }
+            )
+
+        moving_slide = slides.pop(from_index)
+        slides.insert(to_index, moving_slide)
+
+        if current_slide_index == from_index:
+            current_slide_index = to_index
+        elif from_index < current_slide_index <= to_index:
+            current_slide_index -= 1
+        elif to_index <= current_slide_index < from_index:
+            current_slide_index += 1
+
+        active_lesson["updatedAt"] = now_iso()
+        bump_state_version_locked()
+        snapshot = snapshot_state_locked(include_names=True)
+
+    return jsonify(
+        {
+            "ok": True,
+            "activeLesson": snapshot["activeLesson"],
+            "currentSlideIndex": snapshot["currentSlideIndex"],
+        }
+    )
+
+
 @app.post("/api/instructor/lesson/clear")
 def clear_lesson():
     global active_lesson, current_slide_index

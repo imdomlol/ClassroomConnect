@@ -22,6 +22,15 @@
         <button type="button" class="tab-button" data-tab-target="lesson-studio">Lesson Studio</button>
       </nav>
 
+      <section class="panel instructor-timeline-dock" aria-labelledby="timeline-title">
+        <div class="feed-header">
+          <h2 id="timeline-title">Slide Timeline</h2>
+          <p id="lesson-sync-status" class="muted">No active lesson.</p>
+        </div>
+        <p class="muted">Drag to reorder, click to jump, or use X to remove.</p>
+        <div id="lesson-timeline" class="lesson-timeline" hidden></div>
+      </section>
+
       <section class="panel form-panel tab-panel" data-tab-panel="prompt-controls" aria-labelledby="new-prompt-title">
         <h2 id="new-prompt-title">Create Prompt</h2>
         <form id="prompt-form" novalidate>
@@ -73,7 +82,7 @@
       <section class="panel feed-panel tab-panel" data-tab-panel="lesson-studio" aria-labelledby="lesson-studio-title" hidden>
         <div class="feed-header">
           <h2 id="lesson-studio-title">Lesson Studio</h2>
-          <p id="lesson-sync-status" class="muted">No active lesson.</p>
+          <p class="muted">Build or upload slides and control playback.</p>
         </div>
 
         <form id="lesson-custom-form" novalidate>
@@ -122,7 +131,6 @@
         </div>
 
         <div id="lesson-preview" class="prompt-results" hidden></div>
-        <div id="lesson-timeline" class="lesson-timeline" hidden></div>
       </section>
     </main>
 

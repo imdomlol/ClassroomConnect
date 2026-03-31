@@ -34,6 +34,7 @@ let stream = null;
 let pollingTimer = null;
 let currentLesson = null;
 let currentLessonSlideIndex = 0;
+let dragFromIndex = null;
 
 function toLocalTime(isoString) {
   const date = new Date(isoString);
@@ -142,7 +143,7 @@ function renderLessonPreview(lesson, currentSlideIndex) {
       const activeClass = itemIndex === index ? " active" : "";
       const kindLabel = item.kind === "image" ? "Image" : "Text";
       return `
-        <div class="timeline-slide${activeClass}" data-slide-index="${itemIndex}">
+        <div class="timeline-slide${activeClass}" data-slide-index="${itemIndex}" draggable="true">
           <button type="button" class="timeline-slide-main" data-slide-index="${itemIndex}" title="Go to slide ${itemIndex + 1}">
             <span class="timeline-slide-kind">${kindLabel} ${itemIndex + 1}</span>
             <strong>${escapeHtml(item.title || `Slide ${itemIndex + 1}`)}</strong>
@@ -182,6 +183,21 @@ async function removeSlide(index) {
   const data = await response.json();
   if (!response.ok) {
     throw new Error(data.error || "Unable to remove slide");
+  }
+
+  await refreshSnapshot();
+}
+
+async function reorderSlides(fromIndex, toIndex) {
+  const response = await fetch("/api/instructor/lesson/reorder-slides", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fromIndex, toIndex }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || "Unable to reorder slides");
   }
 
   await refreshSnapshot();
@@ -541,6 +557,83 @@ lessonTimelineNode.addEventListener("click", async (event) => {
     await navigateToSlide(index);
   } catch (error) {
     showLessonStatus(error.message || "Unable to navigate lesson.", "error");
+  }
+});
+
+lessonTimelineNode.addEventListener("dragstart", (event) => {
+  const slide = event.target.closest(".timeline-slide");
+  if (!slide) {
+    return;
+  }
+
+  dragFromIndex = Number.parseInt(slide.dataset.slideIndex || "", 10);
+  if (Number.isNaN(dragFromIndex)) {
+    dragFromIndex = null;
+    return;
+  }
+
+  event.dataTransfer.effectAllowed = "move";
+  slide.classList.add("dragging");
+});
+
+lessonTimelineNode.addEventListener("dragend", (event) => {
+  const slide = event.target.closest(".timeline-slide");
+  if (slide) {
+    slide.classList.remove("dragging");
+  }
+
+  lessonTimelineNode.querySelectorAll(".timeline-slide.drop-target").forEach((node) => {
+    node.classList.remove("drop-target");
+  });
+  dragFromIndex = null;
+});
+
+lessonTimelineNode.addEventListener("dragover", (event) => {
+  event.preventDefault();
+  const slide = event.target.closest(".timeline-slide");
+  if (!slide) {
+    return;
+  }
+
+  lessonTimelineNode.querySelectorAll(".timeline-slide.drop-target").forEach((node) => {
+    node.classList.remove("drop-target");
+  });
+  slide.classList.add("drop-target");
+  event.dataTransfer.dropEffect = "move";
+});
+
+lessonTimelineNode.addEventListener("dragleave", (event) => {
+  const slide = event.target.closest(".timeline-slide");
+  if (slide) {
+    slide.classList.remove("drop-target");
+  }
+});
+
+lessonTimelineNode.addEventListener("drop", async (event) => {
+  event.preventDefault();
+  const slide = event.target.closest(".timeline-slide");
+  if (!slide || dragFromIndex === null) {
+    return;
+  }
+
+  const dragToIndex = Number.parseInt(slide.dataset.slideIndex || "", 10);
+  if (Number.isNaN(dragToIndex)) {
+    return;
+  }
+
+  lessonTimelineNode.querySelectorAll(".timeline-slide.drop-target").forEach((node) => {
+    node.classList.remove("drop-target");
+  });
+
+  if (dragToIndex === dragFromIndex) {
+    return;
+  }
+
+  try {
+    await reorderSlides(dragFromIndex, dragToIndex);
+    showLessonStatus("Slides reordered.", "success");
+  } catch (error) {
+    showLessonStatus(error.message || "Unable to reorder slides.", "error");
   }
 });
 
