@@ -5,6 +5,7 @@ ClassroomConnect is a local-only classroom board that runs on your host device a
 Version 1 behavior:
 - Interactive posting from connected users
 - Near-real-time updates via server-sent events (SSE) with 2-second polling fallback
+- Instructor view for publishing multiple choice or free response prompts
 - Open access for anyone on the hotspot network
 - In-memory storage only (data resets when app restarts)
 
@@ -40,15 +41,31 @@ Example:
 http://192.168.4.1:5000
 ```
 
+Instructor controls:
+
+```text
+http://<HOST_IP>:5000/instructor
+```
+
 ## API Endpoints
 
 - `GET /api/submissions`
 	- Returns current submissions and server time.
 - `GET /api/stream`
 	- Streams live snapshot events for near-real-time updates.
+- `GET /api/prompt`
+	- Returns active prompt and prompt response summary.
 - `POST /api/submissions`
 	- JSON body: `{ "name": "...", "message": "..." }`
 	- Enforces basic validation and rate limiting.
+- `POST /api/instructor/prompt`
+	- JSON body: `{ "questionType": "multiple_choice"|"free_response", "prompt": "...", "options": ["..."] }`
+	- Creates/replaces the active prompt.
+- `POST /api/instructor/prompt/close`
+	- Closes the active prompt.
+- `POST /api/prompt/respond`
+	- JSON body: `{ "name": "...", "answer": "..." }`
+	- Submits a participant response for the active prompt.
 
 ## Safety Limits in v1
 

@@ -96,12 +96,14 @@ label {
 
 input,
 textarea,
+select,
 button {
   font: inherit;
 }
 
 input,
-textarea {
+textarea,
+select {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -141,6 +143,15 @@ button:disabled {
   opacity: 0.6;
   cursor: wait;
   transform: none;
+}
+
+.ghost {
+  background: #e6edf8;
+  color: var(--ink);
+}
+
+.ghost:hover {
+  background: #d7e4f7;
 }
 
 .status {
@@ -200,6 +211,99 @@ button:disabled {
 .empty {
   margin: 0.6rem 0 0;
   color: var(--ink-soft);
+}
+
+.question-text {
+  margin: 0.4rem 0 0.9rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.choice-group {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.7rem;
+  margin: 0.6rem 0 0;
+}
+
+.choice-group legend {
+  padding: 0 0.3rem;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.choice-option {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0.55rem 0;
+  font-weight: 500;
+}
+
+.choice-option input {
+  width: auto;
+}
+
+.prompt-results {
+  margin-top: 0.9rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.8rem;
+}
+
+.result-list,
+.response-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.result-row {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.55rem;
+  background: #fff;
+}
+
+.result-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+  font-size: 0.92rem;
+}
+
+.bar {
+  background: #e9f0ff;
+  border-radius: 999px;
+  height: 9px;
+  overflow: hidden;
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #0e7c86, #3e9ea8);
+}
+
+.response-item {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.6rem;
+  background: #fff;
+}
+
+.response-item header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  color: var(--ink-soft);
+  font-size: 0.84rem;
+}
+
+.response-item p {
+  margin: 0.4rem 0 0;
+  white-space: pre-wrap;
 }
 
 @keyframes rise {
