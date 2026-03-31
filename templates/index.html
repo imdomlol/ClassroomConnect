@@ -36,55 +36,57 @@
         </p>
       </header>
 
-      <section class="panel prompt-panel" aria-labelledby="prompt-title">
-        <div class="feed-header">
-          <h2 id="prompt-title">Active Question</h2>
-          <p id="question-status" class="muted">Waiting for instructor prompt...</p>
-        </div>
-
-        <p id="question-text" class="question-text">No active question yet.</p>
-
-        <form id="answer-form" novalidate>
-          <div id="answer-input-area"></div>
-
-          <div class="form-row">
-            <button id="answer-submit-button" type="submit" disabled>Submit Answer</button>
-            <p id="answer-status" class="status" aria-live="polite"></p>
+      <div class="student-layout">
+        <section class="panel prompt-panel" aria-labelledby="prompt-title">
+          <div class="feed-header">
+            <h2 id="prompt-title">Active Question</h2>
+            <p id="question-status" class="muted">Waiting for instructor prompt...</p>
           </div>
-        </form>
 
-        <div id="prompt-results" class="prompt-results" hidden></div>
-      </section>
+          <p id="question-text" class="question-text">No active question yet.</p>
 
-      <section class="panel form-panel" aria-labelledby="post-title">
-        <h2 id="post-title">Post an Update</h2>
-        <form id="submission-form" novalidate>
-          <label for="message">Message</label>
-          <textarea
-            id="message"
-            name="message"
-            maxlength="280"
-            rows="4"
-            required
-            placeholder="Today's warm-up starts in 5 minutes."
-          ></textarea>
+          <form id="answer-form" novalidate>
+            <div id="answer-input-area"></div>
 
-          <div class="form-row">
-            <button id="submit-button" type="submit">Send</button>
-            <p id="status" class="status" aria-live="polite"></p>
+            <div class="form-row">
+              <button id="answer-submit-button" type="submit" disabled>Submit Answer</button>
+              <p id="answer-status" class="status" aria-live="polite"></p>
+            </div>
+          </form>
+
+          <div id="prompt-results" class="prompt-results" hidden></div>
+        </section>
+
+        <aside id="chat-sidebar" class="panel chat-sidebar" aria-labelledby="chat-title">
+          <div class="chat-header">
+            <h2 id="chat-title">Class Chat</h2>
+            <button id="chat-toggle" type="button" class="ghost">Minimize</button>
           </div>
-        </form>
-      </section>
-
-      <section class="panel feed-panel" aria-labelledby="feed-title">
-        <div class="feed-header">
-          <h2 id="feed-title">Live Feed</h2>
           <p id="last-updated" class="muted">Waiting for first update...</p>
-        </div>
 
-        <ul id="feed" class="feed" aria-live="polite"></ul>
-        <p id="empty-state" class="empty">No posts yet. Be the first to share an update.</p>
-      </section>
+          <div id="chat-body" class="chat-body">
+            <ul id="feed" class="feed chat-feed" aria-live="polite"></ul>
+            <p id="empty-state" class="empty">No messages yet. Start the conversation.</p>
+
+            <form id="submission-form" class="chat-compose" novalidate>
+              <label for="message">Send a message</label>
+              <textarea
+                id="message"
+                name="message"
+                maxlength="280"
+                rows="3"
+                required
+                placeholder="Share a thought with the class..."
+              ></textarea>
+
+              <div class="form-row">
+                <button id="submit-button" type="submit">Send</button>
+                <p id="status" class="status" aria-live="polite"></p>
+              </div>
+            </form>
+          </div>
+        </aside>
+      </div>
     </main>
 
     <script src="{{ url_for('static', filename='app.js') }}" defer></script>

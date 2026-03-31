@@ -93,6 +93,53 @@ h1 {
   animation: rise 540ms ease both;
 }
 
+.student-layout {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 1.25rem;
+}
+
+.chat-sidebar {
+  display: flex;
+  flex-direction: column;
+  max-height: 78vh;
+}
+
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.chat-header h2 {
+  margin-bottom: 0;
+}
+
+.chat-body {
+  margin-top: 0.7rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 0.75rem;
+}
+
+.chat-feed {
+  flex: 1;
+  min-height: 200px;
+  overflow-y: auto;
+  padding-right: 0.35rem;
+}
+
+.chat-compose {
+  border-top: 1px solid var(--line);
+  padding-top: 0.65rem;
+}
+
+.chat-sidebar.collapsed .chat-body {
+  display: none;
+}
+
 .form-panel {
   animation-delay: 80ms;
 }
@@ -346,5 +393,16 @@ button:disabled {
 
   .hero {
     grid-column: 1 / -1;
+  }
+
+  .student-layout {
+    grid-template-columns: minmax(0, 1fr) 360px;
+    align-items: start;
+  }
+
+  .chat-sidebar {
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
   }
 }

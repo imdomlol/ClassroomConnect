@@ -17,6 +17,9 @@ const joinForm = document.getElementById("join-form");
 const joinNameInput = document.getElementById("join-name");
 const joinStatusNode = document.getElementById("join-status");
 const activeStudentNode = document.getElementById("active-student");
+const chatSidebar = document.getElementById("chat-sidebar");
+const chatBody = document.getElementById("chat-body");
+const chatToggleButton = document.getElementById("chat-toggle");
 
 let latestKnownId = 0;
 let pollingTimer = null;
@@ -25,6 +28,7 @@ let currentPrompt = null;
 let sessionName = "";
 
 const SESSION_NAME_KEY = "classroomconnect_student_name";
+const CHAT_COLLAPSED_KEY = "classroomconnect_chat_collapsed";
 
 function toLocalTime(isoString) {
   const date = new Date(isoString);
@@ -104,6 +108,20 @@ function renderFeed(submissions) {
     `;
     feedNode.appendChild(li);
   });
+
+  feedNode.scrollTop = feedNode.scrollHeight;
+}
+
+function setChatCollapsed(isCollapsed) {
+  chatSidebar.classList.toggle("collapsed", isCollapsed);
+  chatBody.hidden = isCollapsed;
+  chatToggleButton.textContent = isCollapsed ? "Open Chat" : "Minimize";
+  sessionStorage.setItem(CHAT_COLLAPSED_KEY, isCollapsed ? "1" : "0");
+}
+
+function initializeChatState() {
+  const collapsed = sessionStorage.getItem(CHAT_COLLAPSED_KEY) === "1";
+  setChatCollapsed(collapsed);
 }
 
 function escapeHtml(value) {
@@ -405,6 +423,12 @@ joinForm.addEventListener("submit", (event) => {
   }
 });
 
+chatToggleButton.addEventListener("click", () => {
+  const isCollapsed = !chatSidebar.classList.contains("collapsed");
+  setChatCollapsed(isCollapsed);
+});
+
 ensureSessionName();
+initializeChatState();
 connectStream();
 startPolling();
