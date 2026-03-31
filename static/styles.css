@@ -109,6 +109,35 @@ h1 {
   animation: rise 540ms ease both;
 }
 
+.instructor-shell {
+  grid-template-columns: 1fr;
+}
+
+.instructor-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  padding: 0.65rem;
+}
+
+.tab-button {
+  background: var(--ghost-bg);
+  color: var(--ink-soft);
+  border-radius: 10px;
+  padding: 0.5rem 0.85rem;
+  font-weight: 700;
+}
+
+.tab-button:hover {
+  background: var(--ghost-hover);
+  transform: none;
+}
+
+.tab-button.active {
+  background: var(--accent);
+  color: #0c1020;
+}
+
 .student-layout {
   grid-column: 1 / -1;
   display: grid;
@@ -584,5 +613,9 @@ button:disabled {
     top: 0.75rem;
     height: calc(100vh - 1.5rem);
     max-height: calc(100vh - 1.5rem);
+  }
+
+  .instructor-shell {
+    grid-template-columns: 1fr;
   }
 }

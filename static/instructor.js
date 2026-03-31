@@ -27,6 +27,8 @@ const lessonSyncStatusNode = document.getElementById("lesson-sync-status");
 const lessonStatusNode = document.getElementById("lesson-status");
 const lessonPreviewNode = document.getElementById("lesson-preview");
 const lessonTimelineNode = document.getElementById("lesson-timeline");
+const tabButtons = Array.from(document.querySelectorAll(".tab-button"));
+const tabPanels = Array.from(document.querySelectorAll(".tab-panel"));
 
 let stream = null;
 let pollingTimer = null;
@@ -64,6 +66,19 @@ function showLessonStatus(message, type = "") {
   if (type) {
     lessonStatusNode.classList.add(type);
   }
+}
+
+function setActiveTab(tabId) {
+  tabButtons.forEach((button) => {
+    const isActive = button.dataset.tabTarget === tabId;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-selected", isActive ? "true" : "false");
+  });
+
+  tabPanels.forEach((panel) => {
+    const isActive = panel.dataset.tabPanel === tabId;
+    panel.hidden = !isActive;
+  });
 }
 
 function parseLessonSlides(rawText) {
@@ -529,11 +544,18 @@ lessonTimelineNode.addEventListener("click", async (event) => {
   }
 });
 
+tabButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    setActiveTab(button.dataset.tabTarget);
+  });
+});
+
 optionsGroup.hidden = false;
 lockPromptButton.disabled = true;
 lessonPrevButton.disabled = true;
 lessonNextButton.disabled = true;
 lessonClearButton.disabled = true;
 lessonTimelineNode.hidden = true;
+setActiveTab("prompt-controls");
 connectStream();
 startPolling();

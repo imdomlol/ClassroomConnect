@@ -8,7 +8,7 @@
   </head>
   <body>
     <div class="background-grid" aria-hidden="true"></div>
-    <main class="shell">
+    <main class="shell instructor-shell">
       <header class="hero">
         <p class="eyebrow">Instructor Controls</p>
         <h1>Prompt Manager</h1>
@@ -16,7 +16,13 @@
         <p class="subtitle"><a href="/">Back to Student View</a></p>
       </header>
 
-      <section class="panel form-panel" aria-labelledby="new-prompt-title">
+      <nav class="panel instructor-tabs" aria-label="Instructor tools">
+        <button type="button" class="tab-button active" data-tab-target="prompt-controls">Prompt Controls</button>
+        <button type="button" class="tab-button" data-tab-target="prompt-results">Prompt Results</button>
+        <button type="button" class="tab-button" data-tab-target="lesson-studio">Lesson Studio</button>
+      </nav>
+
+      <section class="panel form-panel tab-panel" data-tab-panel="prompt-controls" aria-labelledby="new-prompt-title">
         <h2 id="new-prompt-title">Create Prompt</h2>
         <form id="prompt-form" novalidate>
           <label for="question-type">Question type</label>
@@ -54,7 +60,7 @@
         </form>
       </section>
 
-      <section class="panel feed-panel" aria-labelledby="active-prompt-title">
+      <section class="panel feed-panel tab-panel" data-tab-panel="prompt-results" aria-labelledby="active-prompt-title" hidden>
         <div class="feed-header">
           <h2 id="active-prompt-title">Active Prompt Snapshot</h2>
           <p id="last-updated" class="muted">Waiting for first update...</p>
@@ -64,7 +70,7 @@
         <div id="active-prompt-results" class="prompt-results" hidden></div>
       </section>
 
-      <section class="panel feed-panel" aria-labelledby="lesson-studio-title">
+      <section class="panel feed-panel tab-panel" data-tab-panel="lesson-studio" aria-labelledby="lesson-studio-title" hidden>
         <div class="feed-header">
           <h2 id="lesson-studio-title">Lesson Studio</h2>
           <p id="lesson-sync-status" class="muted">No active lesson.</p>
