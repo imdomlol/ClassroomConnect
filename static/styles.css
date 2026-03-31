@@ -104,6 +104,7 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 1rem;
+  min-width: 0;
   box-shadow: 0 12px 28px rgba(16, 29, 61, 0.08);
   animation: rise 540ms ease both;
 }
@@ -201,14 +202,20 @@ h1 {
   margin-top: 0.9rem;
   border-top: 1px solid var(--line);
   padding-top: 0.8rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   display: flex;
   gap: 0.6rem;
   overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
   padding-bottom: 0.3rem;
 }
 
 .timeline-slide {
-  min-width: 220px;
+  flex: 0 0 min(240px, 72vw);
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 0.45rem;
@@ -216,6 +223,7 @@ h1 {
   border-radius: 12px;
   background: var(--surface-strong);
   padding: 0.45rem;
+  scroll-snap-align: start;
 }
 
 .timeline-slide.active {
