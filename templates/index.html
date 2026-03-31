@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ClassroomConnect</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body>
+    <div class="background-grid" aria-hidden="true"></div>
+    <main class="shell">
+      <header class="hero">
+        <p class="eyebrow">Local Classroom Board</p>
+        <h1>ClassroomConnect</h1>
+        <p class="subtitle">
+          Anyone on this Wi-Fi can post quick updates and see responses in near real time.
+        </p>
+      </header>
+
+      <section class="panel form-panel" aria-labelledby="post-title">
+        <h2 id="post-title">Post an Update</h2>
+        <form id="submission-form" novalidate>
+          <label for="name">Your name</label>
+          <input id="name" name="name" maxlength="40" required placeholder="Alex" />
+
+          <label for="message">Message</label>
+          <textarea
+            id="message"
+            name="message"
+            maxlength="280"
+            rows="4"
+            required
+            placeholder="Today's warm-up starts in 5 minutes."
+          ></textarea>
+
+          <div class="form-row">
+            <button id="submit-button" type="submit">Send</button>
+            <p id="status" class="status" aria-live="polite"></p>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel feed-panel" aria-labelledby="feed-title">
+        <div class="feed-header">
+          <h2 id="feed-title">Live Feed</h2>
+          <p id="last-updated" class="muted">Waiting for first update...</p>
+        </div>
+
+        <ul id="feed" class="feed" aria-live="polite"></ul>
+        <p id="empty-state" class="empty">No posts yet. Be the first to share an update.</p>
+      </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  </body>
+</html>

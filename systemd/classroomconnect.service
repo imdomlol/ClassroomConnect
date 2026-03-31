@@ -1,0 +1,16 @@
+[Unit]
+Description=ClassroomConnect local classroom board
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/ClassroomConnect
+Environment=PORT=5000
+ExecStart=/usr/bin/python3 /home/pi/ClassroomConnect/app.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
