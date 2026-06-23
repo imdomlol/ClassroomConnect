@@ -20,13 +20,16 @@ Version 1 behavior:
 
 1. Clone this repository on the host device.
 2. Create and activate a virtual environment.
-3. Install dependencies.
-4. Run the app bound to all interfaces.
-
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
+```
+3. Install dependencies.
+```bash
 pip install -r requirements.txt
+```
+4. Run the app bound to all interfaces.
+```bash
 python app.py
 ```
 
