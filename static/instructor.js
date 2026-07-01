@@ -27,6 +27,14 @@ const lessonSyncStatusNode = document.getElementById("lesson-sync-status");
 const lessonStatusNode = document.getElementById("lesson-status");
 const lessonPreviewNode = document.getElementById("lesson-preview");
 const lessonTimelineNode = document.getElementById("lesson-timeline");
+const connectionsSummaryNode = document.getElementById("connections-summary");
+const connectionsListNode = document.getElementById("connections-list");
+const connectionEventsNode = document.getElementById("connection-events");
+const rosterUploadForm = document.getElementById("roster-upload-form");
+const rosterFileInput = document.getElementById("roster-file");
+const rosterUploadButton = document.getElementById("roster-upload-button");
+const rosterStatusNode = document.getElementById("roster-status");
+const rosterSummaryNode = document.getElementById("roster-summary");
 const tabButtons = Array.from(document.querySelectorAll(".tab-button"));
 const tabPanels = Array.from(document.querySelectorAll(".tab-panel"));
 
@@ -258,6 +266,65 @@ function renderPromptResults(prompt, stats) {
   `;
 }
 
+function showRosterStatus(message, type = "") {
+  rosterStatusNode.textContent = message;
+  rosterStatusNode.classList.remove("success", "error");
+  if (type) {
+    rosterStatusNode.classList.add(type);
+  }
+}
+
+function renderPresence(presence) {
+  if (!presence) {
+    connectionsSummaryNode.textContent = "No connection data yet.";
+    connectionsListNode.innerHTML = '<p class="muted">Students will appear here after they join.</p>';
+    connectionEventsNode.innerHTML = '<li class="muted">No connection events yet.</li>';
+    return;
+  }
+
+  const participants = presence.participants || [];
+  connectionsSummaryNode.textContent = `${presence.connectedCount || 0}/${participants.length} connected`;
+
+  if (!participants.length) {
+    connectionsListNode.innerHTML = '<p class="muted">Students will appear here after they join.</p>';
+  } else {
+    connectionsListNode.innerHTML = participants
+      .map((item) => {
+        const statusClass = item.connected ? "online" : "offline";
+        const statusLabel = item.connected ? "Connected" : "Offline";
+        return `
+          <article class="presence-row">
+            <div>
+              <strong>${escapeHtml(item.name || item.identity)}</strong>
+              <span>${statusLabel}${item.openSessions > 1 ? ` (${item.openSessions} tabs)` : ""}</span>
+              <span>${escapeHtml(item.email || "")}${item.email && !item.rosterMatched ? " - not on roster" : ""}</span>
+            </div>
+            <time>${toLocalTime(item.lastSeenAt)}</time>
+            <span class="presence-dot ${statusClass}" aria-label="${statusLabel}"></span>
+          </article>
+        `;
+      })
+      .join("");
+  }
+
+  const events = presence.recentEvents || [];
+  connectionEventsNode.innerHTML = events.length
+    ? events
+        .map((event) => {
+          const label = event.eventType === "connect" ? "connected" : "disconnected";
+          const reason = event.reason ? ` (${escapeHtml(event.reason)})` : "";
+          return `
+            <li>
+              <strong>${escapeHtml(event.name || event.identity)}</strong>
+              <span>${label}${reason}</span>
+              <time>${toLocalTime(event.createdAt)}</time>
+            </li>
+          `;
+        })
+        .join("")
+    : '<li class="muted">No connection events yet.</li>';
+}
+
 function applySnapshot(data) {
   const prompt = data.activePrompt;
   const stats = data.promptStats;
@@ -279,7 +346,9 @@ function applySnapshot(data) {
   }
 
   lastUpdatedNode.textContent = `Last updated: ${toLocalTime(data.serverTime)}`;
+  rosterSummaryNode.textContent = `${(data.roster && data.roster.count) || 0} roster students loaded`;
   renderLessonPreview(lesson, currentSlideIndex);
+  renderPresence(data.presence || null);
 }
 
 async function refreshSnapshot() {
@@ -490,6 +559,42 @@ lessonUploadForm.addEventListener("submit", async (event) => {
     showLessonStatus(error.message || "Unable to upload image lesson.", "error");
   } finally {
     lessonUploadButton.disabled = false;
+  }
+});
+
+rosterUploadForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const file = rosterFileInput.files && rosterFileInput.files[0];
+  if (!file) {
+    showRosterStatus("Select a CSV roster file.", "error");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  rosterUploadButton.disabled = true;
+  showRosterStatus("Uploading roster...");
+
+  try {
+    const response = await fetch("/api/instructor/roster/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "Unable to upload roster");
+    }
+
+    rosterFileInput.value = "";
+    showRosterStatus(`Roster uploaded: ${data.count} students.`, "success");
+    await refreshSnapshot();
+  } catch (error) {
+    showRosterStatus(error.message || "Unable to upload roster.", "error");
+  } finally {
+    rosterUploadButton.disabled = false;
   }
 });
 

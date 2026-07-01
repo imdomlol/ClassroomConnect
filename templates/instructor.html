@@ -20,6 +20,7 @@
         <button type="button" class="tab-button active" data-tab-target="prompt-controls">Prompt Controls</button>
         <button type="button" class="tab-button" data-tab-target="prompt-results">Prompt Results</button>
         <button type="button" class="tab-button" data-tab-target="lesson-studio">Lesson Studio</button>
+        <button type="button" class="tab-button" data-tab-target="connections">Connections</button>
       </nav>
 
       <section class="panel instructor-timeline-dock" aria-labelledby="timeline-title">
@@ -131,6 +132,28 @@
         </div>
 
         <div id="lesson-preview" class="prompt-results" hidden></div>
+      </section>
+
+      <section class="panel feed-panel tab-panel" data-tab-panel="connections" aria-labelledby="connections-title" hidden>
+        <div class="feed-header">
+          <h2 id="connections-title">Connections</h2>
+          <p id="connections-summary" class="muted">Waiting for first update...</p>
+        </div>
+
+        <form id="roster-upload-form" class="lesson-upload-form" novalidate>
+          <label for="roster-file">Class roster CSV</label>
+          <input id="roster-file" type="file" accept=".csv,text/csv" required />
+          <div class="form-row">
+            <button id="roster-upload-button" type="submit">Upload Roster</button>
+            <p id="roster-status" class="status" aria-live="polite"></p>
+          </div>
+          <p id="roster-summary" class="muted">No roster uploaded.</p>
+        </form>
+
+        <div id="connections-list" class="presence-list"></div>
+
+        <h3 class="section-heading">Recent Events</h3>
+        <ul id="connection-events" class="presence-events"></ul>
       </section>
     </main>
 

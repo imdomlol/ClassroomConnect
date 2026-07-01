@@ -11,11 +11,22 @@
     <section id="name-gate" class="name-gate" aria-labelledby="join-title">
       <div class="name-gate-card">
         <p class="eyebrow">Join Session</p>
-        <h2 id="join-title">Enter Your Name</h2>
+        <h2 id="join-title">Join With Email</h2>
         <p class="subtitle">You only need to do this once per browser session.</p>
         <form id="join-form" novalidate>
-          <label for="join-name">Name</label>
-          <input id="join-name" maxlength="40" required placeholder="Alex" />
+          <label for="join-email">Email</label>
+          <input id="join-email" type="email" maxlength="254" required placeholder="alex@example.edu" />
+
+          <div id="join-name-fields" hidden>
+            <p id="join-roster-warning" class="warning-text" hidden>
+              This email is not on the uploaded class roster. If this seems wrong, contact your professor so grading records can be corrected.
+            </p>
+            <label for="join-first-name">First name</label>
+            <input id="join-first-name" maxlength="40" placeholder="Alex" />
+            <label for="join-last-name">Last name</label>
+            <input id="join-last-name" maxlength="40" placeholder="Morgan" />
+          </div>
+
           <div class="form-row">
             <button id="join-button" type="submit">Join</button>
             <p id="join-status" class="status" aria-live="polite"></p>

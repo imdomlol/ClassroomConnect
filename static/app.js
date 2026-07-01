@@ -14,7 +14,11 @@ const questionTextNode = document.getElementById("question-text");
 const promptResultsNode = document.getElementById("prompt-results");
 const nameGate = document.getElementById("name-gate");
 const joinForm = document.getElementById("join-form");
-const joinNameInput = document.getElementById("join-name");
+const joinEmailInput = document.getElementById("join-email");
+const joinNameFields = document.getElementById("join-name-fields");
+const joinRosterWarning = document.getElementById("join-roster-warning");
+const joinFirstNameInput = document.getElementById("join-first-name");
+const joinLastNameInput = document.getElementById("join-last-name");
 const joinStatusNode = document.getElementById("join-status");
 const activeStudentNode = document.getElementById("active-student");
 const chatSidebar = document.getElementById("chat-sidebar");
@@ -28,9 +32,20 @@ let pollingTimer = null;
 let stream = null;
 let currentPrompt = null;
 let sessionName = "";
+let sessionEmail = "";
+let sessionFirstName = "";
+let sessionLastName = "";
+let sessionRosterMatched = false;
+let presenceTimer = null;
 
 const SESSION_NAME_KEY = "classroomconnect_student_name";
+const SESSION_EMAIL_KEY = "classroomconnect_student_email";
+const SESSION_FIRST_NAME_KEY = "classroomconnect_student_first_name";
+const SESSION_LAST_NAME_KEY = "classroomconnect_student_last_name";
+const SESSION_ROSTER_MATCHED_KEY = "classroomconnect_student_roster_matched";
+const SESSION_ID_KEY = "classroomconnect_presence_session_id";
 const CHAT_COLLAPSED_KEY = "classroomconnect_chat_collapsed";
+const PRESENCE_HEARTBEAT_MS = 15000;
 
 function toLocalTime(isoString) {
   const date = new Date(isoString);
@@ -64,23 +79,117 @@ function showJoinStatus(message, type = "") {
   }
 }
 
-function updateSessionBanner() {
-  activeStudentNode.textContent = sessionName ? `Signed in as ${sessionName}` : "";
+function normalizeEmail(value) {
+  return value.trim().toLowerCase();
 }
 
-function setSessionName(name) {
-  sessionName = name;
-  sessionStorage.setItem(SESSION_NAME_KEY, name);
+function buildStudentPayload(extra = {}) {
+  return {
+    email: sessionEmail,
+    firstName: sessionFirstName,
+    lastName: sessionLastName,
+    name: sessionName,
+    ...extra,
+  };
+}
+
+function updateSessionBanner() {
+  activeStudentNode.textContent = sessionName && sessionEmail ? `Signed in as ${sessionName} (${sessionEmail})` : "";
+}
+
+function getPresenceSessionId() {
+  let sessionId = sessionStorage.getItem(SESSION_ID_KEY);
+  if (!sessionId) {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      sessionId = window.crypto.randomUUID();
+    } else {
+      sessionId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+    sessionStorage.setItem(SESSION_ID_KEY, sessionId);
+  }
+  return sessionId;
+}
+
+async function sendPresenceHeartbeat() {
+  if (!sessionName) {
+    return;
+  }
+
+  try {
+    await fetch("/api/presence/heartbeat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(buildStudentPayload({ sessionId: getPresenceSessionId() })),
+      keepalive: true,
+    });
+  } catch {
+    // Presence is advisory; normal classroom actions should keep working offline.
+  }
+}
+
+function startPresenceHeartbeat() {
+  if (!sessionName) {
+    return;
+  }
+
+  sendPresenceHeartbeat();
+  if (presenceTimer) {
+    return;
+  }
+  presenceTimer = setInterval(sendPresenceHeartbeat, PRESENCE_HEARTBEAT_MS);
+}
+
+function sendPresenceDisconnect() {
+  if (!sessionName) {
+    return;
+  }
+
+  const payload = JSON.stringify(buildStudentPayload({ sessionId: getPresenceSessionId() }));
+  if (navigator.sendBeacon) {
+    const blob = new Blob([payload], { type: "application/json" });
+    navigator.sendBeacon("/api/presence/disconnect", blob);
+    return;
+  }
+
+  fetch("/api/presence/disconnect", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: payload,
+    keepalive: true,
+  }).catch(() => {});
+}
+
+function setSessionStudent(student) {
+  sessionEmail = normalizeEmail(student.email || "");
+  sessionFirstName = (student.firstName || "").trim();
+  sessionLastName = (student.lastName || "").trim();
+  sessionName = [sessionFirstName, sessionLastName].filter(Boolean).join(" ") || (student.name || "").trim();
+  sessionRosterMatched = Boolean(student.rosterMatched);
+
+  sessionStorage.setItem(SESSION_EMAIL_KEY, sessionEmail);
+  sessionStorage.setItem(SESSION_FIRST_NAME_KEY, sessionFirstName);
+  sessionStorage.setItem(SESSION_LAST_NAME_KEY, sessionLastName);
+  sessionStorage.setItem(SESSION_NAME_KEY, sessionName);
+  sessionStorage.setItem(SESSION_ROSTER_MATCHED_KEY, sessionRosterMatched ? "1" : "0");
   nameGate.hidden = true;
   updateSessionBanner();
+  startPresenceHeartbeat();
 }
 
 function ensureSessionName() {
-  const stored = (sessionStorage.getItem(SESSION_NAME_KEY) || "").trim();
-  if (stored) {
-    sessionName = stored;
+  const storedEmail = normalizeEmail(sessionStorage.getItem(SESSION_EMAIL_KEY) || "");
+  const storedFirstName = (sessionStorage.getItem(SESSION_FIRST_NAME_KEY) || "").trim();
+  const storedLastName = (sessionStorage.getItem(SESSION_LAST_NAME_KEY) || "").trim();
+  const storedName = (sessionStorage.getItem(SESSION_NAME_KEY) || "").trim();
+  if (storedEmail && storedName) {
+    sessionEmail = storedEmail;
+    sessionFirstName = storedFirstName;
+    sessionLastName = storedLastName;
+    sessionName = storedName;
+    sessionRosterMatched = sessionStorage.getItem(SESSION_ROSTER_MATCHED_KEY) === "1";
     nameGate.hidden = true;
     updateSessionBanner();
+    startPresenceHeartbeat();
     return;
   }
 
@@ -344,15 +453,12 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   if (!sessionName) {
-    showStatus("Enter your name to join first.", "error");
+    showStatus("Join with your email first.", "error");
     nameGate.hidden = false;
     return;
   }
 
-  const payload = {
-    name: sessionName,
-    message: messageInput.value.trim(),
-  };
+  const payload = buildStudentPayload({ message: messageInput.value.trim() });
 
   if (!payload.message) {
     showStatus("Message is required.", "error");
@@ -388,7 +494,7 @@ answerForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   if (!sessionName) {
-    showAnswerStatus("Enter your name to join first.", "error");
+    showAnswerStatus("Join with your email first.", "error");
     nameGate.hidden = false;
     return;
   }
@@ -427,7 +533,7 @@ answerForm.addEventListener("submit", async (event) => {
     const response = await fetch("/api/prompt/respond", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: sessionName, answer }),
+      body: JSON.stringify(buildStudentPayload({ answer })),
     });
 
     const data = await response.json();
@@ -444,16 +550,98 @@ answerForm.addEventListener("submit", async (event) => {
   }
 });
 
-joinForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const candidate = joinNameInput.value.trim();
+async function lookupRosterEmail(email) {
+  const response = await fetch(`/api/roster/lookup?email=${encodeURIComponent(email)}`, { cache: "no-store" });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || "Could not check roster");
+  }
+  return data;
+}
 
-  if (!candidate) {
-    showJoinStatus("Name is required.", "error");
+async function applyRosterLookup() {
+  const email = normalizeEmail(joinEmailInput.value);
+  if (!email) {
+    joinNameFields.hidden = true;
+    joinRosterWarning.hidden = true;
+    joinFirstNameInput.readOnly = false;
+    joinLastNameInput.readOnly = false;
+    return null;
+  }
+
+  const data = await lookupRosterEmail(email);
+  if (data.matched) {
+    joinFirstNameInput.value = data.firstName || "";
+    joinLastNameInput.value = data.lastName || "";
+    joinNameFields.hidden = false;
+    joinRosterWarning.hidden = true;
+    joinFirstNameInput.readOnly = true;
+    joinLastNameInput.readOnly = true;
+    showJoinStatus(`Roster match found for ${data.firstName} ${data.lastName}.`, "success");
+    return data;
+  }
+
+  joinNameFields.hidden = false;
+  joinRosterWarning.hidden = false;
+  if (joinFirstNameInput.readOnly || joinLastNameInput.readOnly) {
+    joinFirstNameInput.value = "";
+    joinLastNameInput.value = "";
+  }
+  joinFirstNameInput.readOnly = false;
+  joinLastNameInput.readOnly = false;
+  showJoinStatus("Email not recognized. Enter your first and last name to continue.", "error");
+  return data;
+}
+
+joinEmailInput.addEventListener("blur", async () => {
+  try {
+    await applyRosterLookup();
+  } catch (error) {
+    showJoinStatus(error.message || "Could not check roster.", "error");
+  }
+});
+
+joinForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const email = normalizeEmail(joinEmailInput.value);
+
+  if (!email) {
+    showJoinStatus("Email is required.", "error");
     return;
   }
 
-  setSessionName(candidate);
+  let lookup;
+  try {
+    lookup = await applyRosterLookup();
+  } catch (error) {
+    showJoinStatus(error.message || "Could not check roster.", "error");
+    return;
+  }
+
+  if (lookup && lookup.matched) {
+    setSessionStudent({
+      email,
+      firstName: lookup.firstName,
+      lastName: lookup.lastName,
+      name: lookup.name,
+      rosterMatched: true,
+    });
+  } else {
+    const firstName = joinFirstNameInput.value.trim();
+    const lastName = joinLastNameInput.value.trim();
+    if (!firstName || !lastName) {
+      showJoinStatus("First and last name are required for unrecognized emails.", "error");
+      return;
+    }
+    setSessionStudent({
+      email,
+      firstName,
+      lastName,
+      name: `${firstName} ${lastName}`,
+      rosterMatched: false,
+    });
+  }
+
   showJoinStatus("", "");
   showStatus("", "");
   showAnswerStatus("", "");
@@ -466,6 +654,8 @@ chatToggleButton.addEventListener("click", () => {
   const isCollapsed = !chatSidebar.classList.contains("collapsed");
   setChatCollapsed(isCollapsed);
 });
+
+window.addEventListener("pagehide", sendPresenceDisconnect);
 
 ensureSessionName();
 initializeChatState();
